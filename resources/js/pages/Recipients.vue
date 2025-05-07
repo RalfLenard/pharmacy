@@ -432,7 +432,7 @@ const goToPage = (url: string | null) => {
             </div>
 
             <!-- Search and Filters -->
-            <div class="bg-white rounded-lg shadow-sm col-span-2 p-4 mb-6 mx-4">
+            <div class="bg-white rounded-lg shadow-sm col-span-1 p-4 mb-6 mx-4">
                 <div class="flex flex-col md:flex-row gap-4">
                     <!-- Search input -->
                     <div class="relative flex-grow">
@@ -500,6 +500,13 @@ const goToPage = (url: string | null) => {
                             <XIcon class="w-4 h-4 mr-2" />
                             Clear
                         </button>
+
+                        
+                    <button @click="showModalFilteredPdf = true"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        Generate Filtered PDF
+                    </button>
+                
                     </div>
                 </div>
 
@@ -550,12 +557,7 @@ const goToPage = (url: string | null) => {
                 </div>
 
                 <!-- Div wrapping the Button -->
-                <div class="flex justify-end mt-4">
-                    <button @click="showModalFilteredPdf = true"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                        Generate Filtered PDF
-                    </button>
-                </div>
+               
             </div>
 
             <!-- Recipients Table -->
