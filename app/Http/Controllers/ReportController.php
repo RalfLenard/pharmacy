@@ -13,41 +13,42 @@ use App\Models\Inventory;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-
+use Illuminate\Support\Facades\Auth;
 
 class ReportController extends Controller
 {
     
-    public function index()
-    {
-        // Chart 1: Distribution count by gender
-        $byGender = RecipientDistribution::with('recipient')
-            ->get()
-            ->groupBy(fn ($record) => $record->recipient->gender ?? 'Unknown')
-            ->map(fn ($group) => $group->sum('quantity'));
+   
+public function index()
+{
+    $user = Auth::user();
 
-        // Chart 2: Distribution count by barangay
-        $byBarangay = RecipientDistribution::with('recipient')
-            ->get()
-            ->groupBy(fn ($record) => $record->recipient->barangay ?? 'Unknown')
-            ->map(fn ($group) => $group->sum('quantity'));
+    // Common chart data (only for admin)
+    $byGender = RecipientDistribution::with('recipient')
+        ->get()
+        ->groupBy(fn ($record) => $record->recipient->gender ?? 'Unknown')
+        ->map(fn ($group) => $group->sum('quantity'));
 
-        // Chart 3: Distribution count by medicine (brand + generic)
-        $byMedicine = RecipientDistribution::with('distribution.inventory')
-            ->get()
-            ->groupBy(function ($record) {
-                $inventory = $record->distribution->inventory ?? null;
-                return $inventory ? "{$inventory->brand_name} ({$inventory->generic_name})" : 'Unknown';
-            })
-            ->map(fn ($group) => $group->sum('quantity'));
+    $byBarangay = RecipientDistribution::with('recipient')
+        ->get()
+        ->groupBy(fn ($record) => $record->recipient->barangay ?? 'Unknown')
+        ->map(fn ($group) => $group->sum('quantity'));
 
-        // Chart 4: Inventory levels per medicine
-        $inventoryLevels = DB::table('inventories')
-            ->select(DB::raw("CONCAT(lot_number, ' - ', brand_name, ' (', generic_name, ')') as name"), 'stocks')
-            ->orderBy('lot_number')
-            ->get();
-    
+    $byMedicine = RecipientDistribution::with('distribution.inventory')
+        ->get()
+        ->groupBy(function ($record) {
+            $inventory = $record->distribution->inventory ?? null;
+            return $inventory ? "{$inventory->brand_name} ({$inventory->generic_name})" : 'Unknown';
+        })
+        ->map(fn ($group) => $group->sum('quantity'));
 
+    $inventoryLevels = DB::table('inventories')
+        ->select(DB::raw("CONCAT(lot_number, ' - ', brand_name, ' (', generic_name, ')') as name"), 'stocks')
+        ->orderBy('lot_number')
+        ->get();
+
+    // Admin sees analytics dashboard
+    if ($user->usertype === 'admin') {
         return Inertia::render('Dashboard', [
             'charts' => [
                 'byGender' => $byGender,
@@ -56,7 +57,14 @@ class ReportController extends Controller
                 'inventoryLevels' => $inventoryLevels,
             ],
         ]);
+    } else
+    {
+        return Inertia::render('Guest');
     }
+
+    // Regular users see a different dashboard
+    
+}
 
     public function generateInventoryReport($lot_number)
     {
