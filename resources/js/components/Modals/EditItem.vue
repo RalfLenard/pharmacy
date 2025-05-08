@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue';
+import { watch, ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { XIcon } from 'lucide-vue-next';
 
@@ -65,6 +65,9 @@ const handleSubmit = () => {
     onSuccess: () => {
       emit('save');
       emit('close');
+    },
+    onError: (errors) => {
+      console.error('Form submission errors:', errors);
     }
   });
 };
@@ -100,7 +103,9 @@ const handleSubmit = () => {
               v-model="form.dateIn"
               required
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.dateIn }"
             />
+            <p v-if="form.errors.dateIn" class="mt-1 text-sm text-red-600">{{ form.errors.dateIn }}</p>
           </div>
 
           <!-- Expiration Date -->
@@ -112,7 +117,9 @@ const handleSubmit = () => {
               v-model="form.expirationDate"
               required
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.expirationDate }"
             />
+            <p v-if="form.errors.expirationDate" class="mt-1 text-sm text-red-600">{{ form.errors.expirationDate }}</p>
           </div>
 
           <!-- Brand Name -->
@@ -125,7 +132,9 @@ const handleSubmit = () => {
               required
               placeholder="e.g., Biogesic"
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.brandName }"
             />
+            <p v-if="form.errors.brandName" class="mt-1 text-sm text-red-600">{{ form.errors.brandName }}</p>
           </div>
 
           <!-- generic Name -->
@@ -136,9 +145,11 @@ const handleSubmit = () => {
               type="text"
               v-model="form.genericName"
               required
-              placeholder="e.g., Biogesic"
+              placeholder="e.g., Paracetamol"
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.genericName }"
             />
+            <p v-if="form.errors.genericName" class="mt-1 text-sm text-red-600">{{ form.errors.genericName }}</p>
           </div>
 
           <div class="sm:col-span-2">
@@ -148,9 +159,10 @@ const handleSubmit = () => {
               type="text"
               v-model="form.utils"
               required
-             
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.utils }"
             />
+            <p v-if="form.errors.utils" class="mt-1 text-sm text-red-600">{{ form.errors.utils }}</p>
           </div>
 
           <!-- Lot/Batch Number -->
@@ -163,7 +175,9 @@ const handleSubmit = () => {
               required
               placeholder="e.g., B12345"
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.lotNumber }"
             />
+            <p v-if="form.errors.lotNumber" class="mt-1 text-sm text-red-600">{{ form.errors.lotNumber }}</p>
           </div>
 
           <!-- Quantity -->
@@ -176,7 +190,9 @@ const handleSubmit = () => {
               v-model.number="form.quantity"
               required
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              :class="{ 'border-red-500': form.errors.quantity }"
             />
+            <p v-if="form.errors.quantity" class="mt-1 text-sm text-red-600">{{ form.errors.quantity }}</p>
           </div>
         </div>
 
@@ -191,9 +207,10 @@ const handleSubmit = () => {
           </button>
           <button
             type="submit"
+            :disabled="form.processing"
             class="inline-flex items-center justify-center rounded-md bg-primary text-white px-4 py-2 text-sm font-medium hover:bg-primary/90 transition"
           >
-            Save Changes
+            {{ form.processing ? 'Saving...' : 'Save Changes' }}
           </button>
         </div>
       </form>

@@ -2,11 +2,13 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { PlusIcon, PencilIcon, EyeIcon, SearchIcon, ChevronDownIcon, ClockIcon, FilterIcon, XIcon } from 'lucide-vue-next';
 import AddRecipientModal from '@/components/Modals/AddRecipientModal.vue';
 import UpdateDistributionModal from '@/components/Modals/UpdateDistributionModal.vue';
 import AddMedicineModal from '@/components/Modals/AddMedicineModal.vue';
+import axios from 'axios';
+import { usePage } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -74,7 +76,7 @@ interface Props {
         lot_number?: string;
     };
 }
-
+const page = usePage();
 const props = defineProps<Props>();
 const showModalFilteredPdf = ref(false);
 const showAdvancedSearchModal = ref(false);
@@ -90,6 +92,73 @@ const filterGenericName = ref(props.filters?.generic_name || '');
 // Current date for year dropdown
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
+
+const flashMessage = ref('');
+const flashType = ref('');
+const showFlash = ref(false);
+
+// Debug function to check what flash messages are available
+const checkFlashMessages = () => {
+    console.log('Page props:', page.props);
+    
+    // Check for flash messages in different possible locations
+    if (page.props.flash) {
+        console.log('Flash messages from page.props.flash:', page.props.flash);
+    }
+    
+    // Check for Laravel's default session flash messages
+    if (page.props.errors) {
+        console.log('Errors:', page.props.errors);
+    }
+    
+    // Check for success message
+    if (page.props.success) {
+        console.log('Success message:', page.props.success);
+    }
+};
+
+// Function to display a flash message programmatically
+const displayFlash = (message, type = 'success') => {
+    flashMessage.value = message;
+    flashType.value = type;
+    showFlash.value = true;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        showFlash.value = false;
+    }, 5000);
+};
+
+// Check for flash messages on component mount and when page props change
+onMounted(() => {
+    checkFlashMessages();
+    
+    // Check for flash messages in different possible locations
+    if (page.props.flash?.success) {
+        displayFlash(page.props.flash.success, 'success');
+    } else if (page.props.flash?.error) {
+        displayFlash(page.props.flash.error, 'error');
+    } else if (page.props.success) {
+        displayFlash(page.props.success, 'success');
+    } else if (page.props.error) {
+        displayFlash(page.props.error, 'error');
+    }
+});
+
+// Watch for changes in page props to detect new flash messages
+watch(() => page.props, (newProps) => {
+    checkFlashMessages();
+    
+    if (newProps.flash?.success) {
+        displayFlash(newProps.flash.success, 'success');
+    } else if (newProps.flash?.error) {
+        displayFlash(newProps.flash.error, 'error');
+    } else if (newProps.success) {
+        displayFlash(newProps.success, 'success');
+    } else if (newProps.error) {
+        displayFlash(newProps.error, 'error');
+    }
+}, { deep: true });
 
 // Advanced search form
 const advancedSearch = ref({
@@ -179,45 +248,41 @@ const uniqueBarangays = computed(() => {
     return Array.from(barangays).sort();
 });
 
-const generateFilteredPdf = () => {
-    // Start with the base URL for generating the PDF
-    let url = `/report/recipient-distributions/pdf?`;  // Change to match the route
+const generateFilteredPdf = async () => {
+    let params = new URLSearchParams();
 
-    // Add query parameters if the user has entered values
-    if (filterMedicine.value) {
-        url += `medicine=${encodeURIComponent(filterMedicine.value)}&`;
-    }
-    if (filterBarangay.value) {
-        url += `barangay=${encodeURIComponent(filterBarangay.value)}&`;
-    }
-    if (filterGender.value) {
-        url += `gender=${encodeURIComponent(filterGender.value)}&`;
-    }
-    if (filterMonth.value) {
-        url += `month=${encodeURIComponent(filterMonth.value)}&`;
-    }
-    if (filterYear.value) {
-        url += `year=${encodeURIComponent(filterYear.value)}&`;
-    }
-    if (filterBrandName.value) {
-        url += `brand_name=${encodeURIComponent(filterBrandName.value)}&`;
-    }
-    if (filterGenericName.value) {
-        url += `generic_name=${encodeURIComponent(filterGenericName.value)}&`;
-    }
-    if (filterLotNumber.value) {
-        url += `lot_number=${encodeURIComponent(filterLotNumber.value)}&`;
+    if (filterMedicine.value) params.append('medicine', filterMedicine.value);
+    if (filterBarangay.value) params.append('barangay', filterBarangay.value);
+    if (filterGender.value) params.append('gender', filterGender.value);
+    if (filterMonth.value) params.append('month', filterMonth.value);
+    if (filterYear.value) params.append('year', filterYear.value);
+    if (filterBrandName.value) params.append('brand_name', filterBrandName.value);
+    if (filterGenericName.value) params.append('generic_name', filterGenericName.value);
+    if (filterLotNumber.value) params.append('lot_number', filterLotNumber.value);
+
+    try {
+        // First, check if there are records that match the filters
+        const response = await axios.get(route('report.recipient-distributions.check'), {
+            params: Object.fromEntries(params),
+        });
+
+        if (response.data.exists) {
+            // If records exist, proceed to generate PDF
+            const url = `/report/recipient-distributions/pdf?${params.toString()}`;
+            window.open(url, '_blank');
+            displayFlash('Generating filtered PDF...', 'success');
+        } else {
+            displayFlash('No records found for the selected filters.', 'error');
+        }
+
+    } catch (error) {
+        console.error(error);
+        displayFlash('Failed to validate filters. Please try again.', 'error');
     }
 
-    // Remove trailing "&"
-    url = url.slice(0, -1);
-
-    // Open the URL that will trigger the controller method to generate the PDF
-    window.open(url, '_blank');
-
-    // Close the modal after generating the PDF
     showModalFilteredPdf.value = false;
 };
+
 
 // Apply advanced search filters
 const applyAdvancedSearch = () => {
@@ -418,6 +483,48 @@ const goToPage = (url: string | null) => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full px-0 py-6">
+
+            <transition
+                enter-active-class="transform ease-out duration-300 transition"
+                enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+                enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+                leave-active-class="transition ease-in duration-200"
+                leave-from-class="opacity-100"
+                leave-to-class="opacity-0"
+            >
+                <div v-if="showFlash" 
+                    class="fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg shadow-lg"
+                    :class="[
+                        flashType === 'success' 
+                            ? (darkMode ? 'bg-green-800 text-green-100 border border-green-700' : 'bg-green-100 text-green-800 border border-green-200') 
+                            : (darkMode ? 'bg-red-800 text-red-100 border border-red-700' : 'bg-red-100 text-red-800 border border-red-200')
+                    ]">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <CheckCircle v-if="flashType === 'success'" class="h-5 w-5" 
+                                :class="darkMode ? 'text-green-200' : 'text-green-500'" />
+                            <AlertCircle v-else class="h-5 w-5" 
+                                :class="darkMode ? 'text-red-200' : 'text-red-500'" />
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium">{{ flashMessage }}</p>
+                        </div>
+                        <div class="ml-auto pl-3">
+                            <button @click="showFlash = false" 
+                                class="inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                :class="[
+                                    flashType === 'success' 
+                                        ? (darkMode ? 'text-green-200 hover:bg-green-700 focus:ring-green-600' : 'text-green-500 hover:bg-green-200 focus:ring-green-400') 
+                                        : (darkMode ? 'text-red-200 hover:bg-red-700 focus:ring-red-600' : 'text-red-500 hover:bg-red-200 focus:ring-red-400')
+                                ]">
+                                <span class="sr-only">Dismiss</span>
+                                <XCircle class="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
             <!-- Header -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 px-4">
                 <div>

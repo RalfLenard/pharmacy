@@ -95,6 +95,9 @@ const handleDistribute = () => {
     onSuccess: () => {
       emit('distribute');
       emit('close');
+    },
+    onError: (errors) => {
+      console.error('Form submission errors:', errors);
     }
   });
 };

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import dayjs from 'dayjs';
-import { PlusCircle, Search, Edit, Trash2, Package } from 'lucide-vue-next';
-import { ref, computed, watch } from 'vue';
+import { PlusCircle, Search, Edit, Trash2, Package, CheckCircle, XCircle, AlertCircle } from 'lucide-vue-next';
+import { ref, computed, watch, onMounted } from 'vue';
 import { PlusIcon, SearchIcon, ChevronDownIcon } from 'lucide-vue-next';
 
 // Import modal components
@@ -12,7 +12,7 @@ import AddItemModal from '@/components/Modals/AddItem.vue';
 import EditItemModal from '@/components/Modals/EditItem.vue';
 import DeleteItemModal from '@/components/Modals/DeleteItem.vue';
 import DistributeItem from '@/components/Modals/DistributeItem.vue';
-import { usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -21,7 +21,77 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-const inventory = computed(() => usePage().props.inventory);
+const page = usePage();
+const inventory = computed(() => page.props.inventory);
+
+// Flash messages
+const flashMessage = ref('');
+const flashType = ref('');
+const showFlash = ref(false);
+
+// Debug function to check what flash messages are available
+const checkFlashMessages = () => {
+    console.log('Page props:', page.props);
+    
+    // Check for flash messages in different possible locations
+    if (page.props.flash) {
+        console.log('Flash messages from page.props.flash:', page.props.flash);
+    }
+    
+    // Check for Laravel's default session flash messages
+    if (page.props.errors) {
+        console.log('Errors:', page.props.errors);
+    }
+    
+    // Check for success message
+    if (page.props.success) {
+        console.log('Success message:', page.props.success);
+    }
+};
+
+// Function to display a flash message programmatically
+const displayFlash = (message, type = 'success') => {
+    flashMessage.value = message;
+    flashType.value = type;
+    showFlash.value = true;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        showFlash.value = false;
+    }, 5000);
+};
+
+// Check for flash messages on component mount and when page props change
+onMounted(() => {
+    checkFlashMessages();
+    
+    // Check for flash messages in different possible locations
+    if (page.props.flash?.success) {
+        displayFlash(page.props.flash.success, 'success');
+    } else if (page.props.flash?.error) {
+        displayFlash(page.props.flash.error, 'error');
+    } else if (page.props.success) {
+        displayFlash(page.props.success, 'success');
+    } else if (page.props.error) {
+        displayFlash(page.props.error, 'error');
+    }
+});
+
+// Watch for changes in page props to detect new flash messages
+watch(() => page.props, (newProps) => {
+    checkFlashMessages();
+    
+    if (newProps.flash?.success) {
+        displayFlash(newProps.flash.success, 'success');
+    } else if (newProps.flash?.error) {
+        displayFlash(newProps.flash.error, 'error');
+    } else if (newProps.success) {
+        displayFlash(newProps.success, 'success');
+    } else if (newProps.error) {
+        displayFlash(newProps.error, 'error');
+    }
+}, { deep: true });
+
 // Filters
 const selectedBatch = ref('');
 const searchTerm = ref('');
@@ -34,16 +104,33 @@ const selectedItem = ref(null);
 const showModalPdf = ref(false);
 const modalLotNumber = ref('');
 
-const generatePdfByLot = () => {
-    if (!modalLotNumber.value.trim()) {
-        alert('Please enter a valid lot number.');
+
+
+const generatePdfByLot = async () => {
+    const trimmedLot = modalLotNumber.value.trim();
+
+    if (!trimmedLot) {
+        displayFlash('Please enter a valid lot number.', 'error');
         return;
     }
 
-    const lot = encodeURIComponent(modalLotNumber.value.trim());
-    window.open(route('reports.inventory.pdf', modalLotNumber.value.trim()), '_blank');
+    try {
+        const response = await axios.get(route('reports.inventory.check', trimmedLot));
+
+        if (response.data.exists) {
+            window.open(route('reports.inventory.pdf', trimmedLot), '_blank');
+            displayFlash(`Generating PDF for Lot: ${trimmedLot}`, 'success');
+        } else {
+            displayFlash('No inventory found for this lot number.', 'error');
+        }
+    } catch (error) {
+        console.error(error);
+        displayFlash('Something went wrong while checking inventory.', 'error');
+    }
+
     showModalPdf.value = false;
 };
+
 
 // Dark mode state
 const darkMode = ref(localStorage.getItem('darkMode') === 'true');
@@ -122,6 +209,33 @@ function openDistributeModal(item) {
     isDistributeModalOpen.value = true;
 }
 
+// Handle modal events
+const handleItemAdded = () => {
+    isAddingItem.value = false;
+    // Display a success message if one wasn't sent from the server
+    if (!page.props.flash?.success && !page.props.success) {
+        displayFlash('Item added successfully!', 'success');
+    }
+};
+
+const handleItemEdited = () => {
+    isEditingItem.value = false;
+    selectedItem.value = null;
+    // Display a success message if one wasn't sent from the server
+    if (!page.props.flash?.success && !page.props.success) {
+        displayFlash('Item updated successfully!', 'success');
+    }
+};
+
+const handleItemDistributed = () => {
+    isDistributeModalOpen.value = false;
+    selectedItem.value = null;
+    // Display a success message if one wasn't sent from the server
+    if (!page.props.flash?.success && !page.props.success) {
+        displayFlash('Item updated successfully!', 'success');
+    }
+};
+
 
 const expirationStatus = (expirationDate: string) => {
     const today = dayjs();
@@ -162,12 +276,54 @@ const badgeClass = (status: string) => {
 
 
 <template>
-
     <Head title="Stock Room" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 p-6 w-full min-h-screen"
             :class="darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-800'">
+            
+            <!-- Flash Message Notification -->
+            <transition
+                enter-active-class="transform ease-out duration-300 transition"
+                enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+                enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+                leave-active-class="transition ease-in duration-200"
+                leave-from-class="opacity-100"
+                leave-to-class="opacity-0"
+            >
+                <div v-if="showFlash" 
+                    class="fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg shadow-lg"
+                    :class="[
+                        flashType === 'success' 
+                            ? (darkMode ? 'bg-green-800 text-green-100 border border-green-700' : 'bg-green-100 text-green-800 border border-green-200') 
+                            : (darkMode ? 'bg-red-800 text-red-100 border border-red-700' : 'bg-red-100 text-red-800 border border-red-200')
+                    ]">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <CheckCircle v-if="flashType === 'success'" class="h-5 w-5" 
+                                :class="darkMode ? 'text-green-200' : 'text-green-500'" />
+                            <AlertCircle v-else class="h-5 w-5" 
+                                :class="darkMode ? 'text-red-200' : 'text-red-500'" />
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium">{{ flashMessage }}</p>
+                        </div>
+                        <div class="ml-auto pl-3">
+                            <button @click="showFlash = false" 
+                                class="inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                :class="[
+                                    flashType === 'success' 
+                                        ? (darkMode ? 'text-green-200 hover:bg-green-700 focus:ring-green-600' : 'text-green-500 hover:bg-green-200 focus:ring-green-400') 
+                                        : (darkMode ? 'text-red-200 hover:bg-red-700 focus:ring-red-600' : 'text-red-500 hover:bg-red-200 focus:ring-red-400')
+                                ]">
+                                <span class="sr-only">Dismiss</span>
+                                <XCircle class="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+            
             <div class="w-full">
                 <!-- Header -->
                 <div class="flex items-center justify-between border-b pb-4 mb-6"
@@ -375,9 +531,9 @@ const badgeClass = (status: string) => {
     </AppLayout>
 
     <!-- Modals -->
-    <AddItemModal :is-open="isAddingItem" @close="isAddingItem = false" />
-    <EditItemModal v-if="selectedItem" :is-open="isEditingItem" :item="selectedItem" @close="isEditingItem = false" />
+    <AddItemModal :is-open="isAddingItem" @close="isAddingItem = false" @save="handleItemAdded" />
+    <EditItemModal v-if="selectedItem" :is-open="isEditingItem" :item="selectedItem" @close="isEditingItem = false" @save="handleItemEdited" />
     <DeleteItemModal v-if="selectedItem" :is-open="isDeletingItem" :item="selectedItem" @close="isDeletingItem = false"
         @confirm="confirmDelete" />
-    <DistributeItem :is-open="isDistributeModalOpen" :item="selectedItem" @close="isDistributeModalOpen = false" />
+    <DistributeItem :is-open="isDistributeModalOpen" :item="selectedItem" @close="isDistributeModalOpen = false" @save="handleItemDistributed" />
 </template>

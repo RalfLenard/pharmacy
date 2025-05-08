@@ -21,41 +21,49 @@ class InventoryController extends Controller
     }
     public function store(Request $request)
     {
-        // Validate the incoming request
-        $validated = $request->validate([
-            'dateIn' => 'required|date',
-            'brandName' => 'required|string|max:255',
-            'genericName' => 'required|string|max:255',
-            'utils' => 'required|string|max:255',
-            'lotNumber' => 'required|string|max:255',
-            'quantity' => 'required|integer|min:1',
-            'expirationDate' => 'required|date|after_or_equal:dateIn',
-        ]);
-        
-        Inventory::create([
-            'date_in' => $validated['dateIn'],
-            'brand_name' => $validated['brandName'],
-            'generic_name' => $validated['genericName'],
-            'utils' => $validated['utils'],
-            'lot_number' => $validated['lotNumber'],
-            'quantity' => $validated['quantity'],
-            'stocks' => $validated['quantity'],
-            'expiration_date' => $validated['expirationDate'],
-        ]);
-        
-      
-
+        try {
+            // Validate the incoming request
+            $validated = $request->validate([
+                'dateIn' => 'required|date',
+                'brandName' => 'required|string|max:255',
+                'genericName' => 'required|string|max:255',
+                'utils' => 'required|string|max:255',
+                'lotNumber' => 'required|string|max:255',
+                'quantity' => 'required|integer|min:1',
+                'expirationDate' => 'required|date|after_or_equal:dateIn',
+            ]);
     
-        // Redirect back with success message
-        return redirect()->back()->with('success', 'Inventory item added successfully!');
+            Inventory::create([
+                'date_in' => $validated['dateIn'],
+                'brand_name' => $validated['brandName'],
+                'generic_name' => $validated['genericName'],
+                'utils' => $validated['utils'],
+                'lot_number' => $validated['lotNumber'],
+                'quantity' => $validated['quantity'],
+                'stocks' => $validated['quantity'], // Initial stocks = quantity
+                'expiration_date' => $validated['expirationDate'],
+            ]);
+    
+            return redirect()->back()->with('success', 'Inventory item added successfully!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->validator)
+                ->withInput();
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'An unexpected error occurred: ' . $e->getMessage())
+                ->withInput();
+        }
     }
+    
     
     /**
      * Update an existing inventory item.
      */
     public function update(Request $request, $id)
-    {
-        $request->validate([
+{
+    try {
+        $validated = $request->validate([
             'brandName' => 'required|string|max:255',
             'genericName' => 'required|string|max:255',
             'lotNumber' => 'required|string|max:255',
@@ -64,23 +72,31 @@ class InventoryController extends Controller
             'dateIn' => 'required|date',
             'expirationDate' => 'required|date|after_or_equal:dateIn',
         ]);
-    
-        $inventory = Inventory::findOrFail($id);
-    
-        $inventory->brand_name = $request->brandName;
-        $inventory->generic_name = $request->genericName;
-        $inventory->utils = $request->utils;
-        $inventory->lot_number = $request->lotNumber;
-        $inventory->quantity = $request->quantity;
-        $inventory->stocks = $request->quantity;
-        $inventory->date_in = $request->dateIn;
-        $inventory->expiration_date = $request->expirationDate;
-    
-        $inventory->save();
-    
-        return redirect()->route('inventory')->with('success', 'Inventory updated successfully.');
-    }
 
+        $inventory = Inventory::findOrFail($id);
+
+        $inventory->update([
+            'brand_name' => $validated['brandName'],
+            'generic_name' => $validated['genericName'],
+            'utils' => $validated['utils'],
+            'lot_number' => $validated['lotNumber'],
+            'quantity' => $validated['quantity'],
+            'stocks' => $validated['quantity'], // optionally adjust this logic
+            'date_in' => $validated['dateIn'],
+            'expiration_date' => $validated['expirationDate'],
+        ]);
+
+        return redirect()->route('inventory')->with('success', 'Inventory updated successfully.');
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return redirect()->back()
+            ->withErrors($e->validator)
+            ->withInput();
+    } catch (\Exception $e) {
+        return redirect()->back()
+            ->with('error', 'An unexpected error occurred: ' . $e->getMessage())
+            ->withInput();
+    }
+}
 
     
     

@@ -10,12 +10,12 @@ class AdminMiddleware
     public function handle($request, Closure $next)
     {
         // Check if user is authenticated and has the role 'admin'
-        if (Auth::check() && Auth::user()->role === 'admin') {
+        if (Auth::check() && Auth::user()->usertype === 'admin') {
             return $next($request);
         }
 
         // Optionally redirect or abort
-        return redirect('/guest')->with('error', 'Unauthorized access');
+        return redirect('/dashboard')->with('error', 'Unauthorized access');
         // or use: abort(403, 'Unauthorized');
     }
 }

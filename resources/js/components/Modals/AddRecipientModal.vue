@@ -14,37 +14,42 @@ interface Distribution {
         lot_number: string;
         generic_name: string;
         utils: string;
+        expiration_date?: string; // Added expiration date field
     }
 }
 
 // State
 const distributions = ref<Distribution[]>([]);
 const loading = ref(false);
-const selectedLotNumber = ref('');
+const selectedMedicineType = ref(''); // Changed from lot number to medicine type
 const selectedDistributionId = ref('');
 
 // Computed properties
-const lotNumberOptions = computed(() => {
+const medicineOptions = computed(() => {
     const options = new Map();
-    
+
     distributions.value.forEach(dist => {
-        const lotNumber = dist.inventory.lot_number;
-        if (!options.has(lotNumber)) {
-            options.set(lotNumber, lotNumber);
+        const medicineName = `${dist.inventory.brand_name} ${dist.inventory.generic_name} ${dist.inventory.utils}`;
+        if (!options.has(medicineName)) {
+            options.set(medicineName, medicineName);
         }
     });
-    
+
     return Array.from(options.values());
 });
 
-const medicineOptions = computed(() => {
-    if (!selectedLotNumber.value) return [];
-    
+const lotNumberOptions = computed(() => {
+    if (!selectedMedicineType.value) return [];
+
     return distributions.value
-        .filter(dist => dist.inventory.lot_number === selectedLotNumber.value)
+        .filter(dist => {
+            const medicineName = `${dist.inventory.brand_name} ${dist.inventory.generic_name} ${dist.inventory.utils}`;
+            return medicineName === selectedMedicineType.value;
+        })
         .map(dist => ({
             id: dist.id,
-            name: `${dist.inventory.brand_name} ${dist.inventory.generic_name} ${dist.inventory.utils}`,
+            lot_number: dist.inventory.lot_number,
+            expiration_date: dist.inventory.expiration_date || 'Not specified',
             stocks: dist.stocks
         }));
 });
@@ -86,13 +91,30 @@ const fetchDistributions = async () => {
     }
 };
 
-const handleLotNumberChange = () => {
+const handleMedicineTypeChange = () => {
     selectedDistributionId.value = '';
     form.distribution_id = '';
 };
 
-const handleMedicineChange = () => {
+const handleLotNumberChange = () => {
     form.distribution_id = selectedDistributionId.value;
+};
+
+const formatDate = (dateString: string): string => {
+    if (!dateString || dateString === 'Not specified') return 'Not specified';
+
+    try {
+        const date = new Date(dateString);
+        // Format as DD MMM YYYY (e.g., 31 Dec 2023)
+        return date.toLocaleDateString('en-US', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return dateString;
+    }
 };
 
 const submitForm = () => {
@@ -173,43 +195,95 @@ onMounted(() => {
                                 <div>
                                     <label for="barangay"
                                         class="block text-sm font-medium text-gray-700">Barangay</label>
-                                    <input v-model="form.barangay" type="text" id="barangay"
+                                    <select v-model="form.barangay" id="barangay"
                                         class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                                        required />
+                                        required>
+                                        <option disabled value="">Please select a barangay</option>
+                                        <option>Alfonso</option>
+                                        <option>Balutu</option>
+                                        <option>Cafe</option>
+                                        <option>Calius Gueco</option>
+                                        <option>Caluluan</option>
+                                        <option>Castillo</option>
+                                        <option>Corazon de Jesus</option>
+                                        <option>Culatingan</option>
+                                        <option>Dungan</option>
+                                        <option>Dutung A Matas</option>
+                                        <option>Green Village</option>
+                                        <option>Lilibangan</option>
+                                        <option>Mabilog</option>
+                                        <option>Magao</option>
+                                        <option>Malupa</option>
+                                        <option>Minane</option>
+                                        <option>Panalicsican</option>
+                                        <option>Pando</option>
+                                        <option>Parang</option>
+                                        <option>Parulung</option>
+                                        <option>Pitabunan</option>
+                                        <option>San Agustin</option>
+                                        <option>San Antonio</option>
+                                        <option>San Bartolome</option>
+                                        <option>San Francisco</option>
+                                        <option>San Isidro</option>
+                                        <option>San Jose</option>
+                                        <option>San Juan</option>
+                                        <option>San Martin</option>
+                                        <option>San Nicolas Poblacion</option>
+                                        <option>San Nicolas Balas</option>
+                                        <option>San Vicente</option>
+                                        <option>Sta. Cruz</option>
+                                        <option>Sta. Maria</option>
+                                        <option>Sta. Monica</option>
+                                        <option>Sta. Rita</option>
+                                        <option>Sta. Rosa</option>
+                                        <option>Santiago</option>
+                                        <option>Santo Cristo</option>
+                                        <option>Santo Niño</option>
+                                        <option>Santo Rosario</option>
+                                        <option>Talimunduc Marimla</option>
+                                        <option>Talimunduc San Miguel</option>
+                                        <option>Telabanca</option>
+                                        <option>Tinang</option>
+                                    </select>
                                     <div v-if="form.errors.barangay" class="text-red-500 text-xs mt-1">
                                         {{ form.errors.barangay }}
                                     </div>
                                 </div>
+
                             </div>
 
                             <!-- Medicine Distribution -->
                             <div>
                                 <h4 class="text-sm font-medium text-gray-700 mb-3">Medicine Distribution</h4>
 
-                                <!-- Batch/Lot Number Selection First -->
+                                <!-- Medicine Selection First -->
                                 <div class="mb-3">
-                                    <label for="lot_number"
-                                        class="block text-sm font-medium text-gray-700">Batch/Lot Number</label>
-                                    <select v-model="selectedLotNumber" id="lot_number" @change="handleLotNumberChange"
+                                    <label for="medicine_type"
+                                        class="block text-sm font-medium text-gray-700">Medicine</label>
+                                    <select v-model="selectedMedicineType" id="medicine_type"
+                                        @change="handleMedicineTypeChange"
                                         class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
                                         required>
-                                        <option value="" disabled>Select a batch/lot number</option>
-                                        <option v-for="lotNumber in lotNumberOptions" :key="lotNumber" :value="lotNumber">
-                                            {{ lotNumber }}
+                                        <option value="" disabled>Select a medicine</option>
+                                        <option v-for="medicine in medicineOptions" :key="medicine" :value="medicine">
+                                            {{ medicine }}
                                         </option>
                                     </select>
                                 </div>
 
-                                <!-- Medicine Selection Second -->
-                                <div class="mb-3" v-if="selectedLotNumber">
-                                    <label for="medicine_id"
-                                        class="block text-sm font-medium text-gray-700">Medicine</label>
-                                    <select v-model="selectedDistributionId" id="medicine_id" @change="handleMedicineChange"
+                                <!-- Batch/Lot Number Selection Second -->
+                                <div class="mb-3" v-if="selectedMedicineType">
+                                    <label for="lot_number" class="block text-sm font-medium text-gray-700">Batch/Lot
+                                        Number</label>
+                                    <select v-model="selectedDistributionId" id="lot_number"
+                                        @change="handleLotNumberChange"
                                         class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
                                         required>
-                                        <option value="" disabled>Select a medicine</option>
-                                        <option v-for="option in medicineOptions" :key="option.id" :value="option.id.toString()">
-                                            {{ option.name }} (Available: {{ option.stocks }})
+                                        <option value="" disabled>Select a batch/lot number</option>
+                                        <option v-for="option in lotNumberOptions" :key="option.id"
+                                            :value="option.id.toString()">
+                                            {{ option.lot_number }} - Expires: {{ formatDate(option.expiration_date) }}
+                                            (Available: {{ option.stocks }})
                                         </option>
                                     </select>
                                     <div v-if="form.errors.distribution_id" class="text-red-500 text-xs mt-1">

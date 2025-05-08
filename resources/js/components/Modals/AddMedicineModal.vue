@@ -27,37 +27,42 @@ interface Distribution {
         lot_number: string;
         generic_name: string;
         utils: string;
+        expiration_date?: string; // Added expiration date field
     }
 }
 
 // State
 const distributions = ref<Distribution[]>([]);
 const loading = ref(false);
-const selectedLotNumber = ref('');
+const selectedMedicineType = ref(''); // Changed from lot number to medicine type
 const selectedDistributionId = ref('');
 
 // Computed properties
-const lotNumberOptions = computed(() => {
+const medicineOptions = computed(() => {
     const options = new Map();
     
     distributions.value.forEach(dist => {
-        const lotNumber = dist.inventory.lot_number;
-        if (!options.has(lotNumber)) {
-            options.set(lotNumber, lotNumber);
+        const medicineName = `${dist.inventory.brand_name} ${dist.inventory.generic_name} ${dist.inventory.utils}`;
+        if (!options.has(medicineName)) {
+            options.set(medicineName, medicineName);
         }
     });
     
     return Array.from(options.values());
 });
 
-const medicineOptions = computed(() => {
-    if (!selectedLotNumber.value) return [];
+const lotNumberOptions = computed(() => {
+    if (!selectedMedicineType.value) return [];
     
     return distributions.value
-        .filter(dist => dist.inventory.lot_number === selectedLotNumber.value)
+        .filter(dist => {
+            const medicineName = `${dist.inventory.brand_name} ${dist.inventory.generic_name} ${dist.inventory.utils}`;
+            return medicineName === selectedMedicineType.value;
+        })
         .map(dist => ({
             id: dist.id,
-            name: `${dist.inventory.brand_name} ${dist.inventory.generic_name}  ${dist.inventory.utils}`,
+            lot_number: dist.inventory.lot_number,
+            expiration_date: dist.inventory.expiration_date || 'Not specified',
             stocks: dist.stocks
         }));
 });
@@ -96,13 +101,30 @@ const fetchDistributions = async () => {
     }
 };
 
-const handleLotNumberChange = () => {
+const handleMedicineTypeChange = () => {
     selectedDistributionId.value = '';
     form.distribution_id = '';
 };
 
-const handleMedicineChange = () => {
+const handleLotNumberChange = () => {
     form.distribution_id = selectedDistributionId.value;
+};
+
+const formatDate = (dateString: string): string => {
+    if (!dateString || dateString === 'Not specified') return 'Not specified';
+    
+    try {
+        const date = new Date(dateString);
+        // Format as DD MMM YYYY (e.g., 31 Dec 2023)
+        return date.toLocaleDateString('en-US', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return dateString;
+    }
 };
 
 // Handle form submission
@@ -155,11 +177,32 @@ onMounted(() => {
                         <div class="space-y-4">
                             <!-- Medicine selection, quantity, and date -->
                             <div>
-                                <!-- Batch/Lot Number Selection First -->
+                                <!-- Medicine Selection First -->
                                 <div class="mb-3">
+                                    <label for="medicine_type" class="block text-sm font-medium text-gray-700">Medicine</label>
+                                    <select
+                                        v-model="selectedMedicineType"
+                                        id="medicine_type"
+                                        @change="handleMedicineTypeChange"
+                                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                                        required
+                                    >
+                                        <option value="" disabled>Select a medicine</option>
+                                        <option
+                                            v-for="medicine in medicineOptions"
+                                            :key="medicine"
+                                            :value="medicine"
+                                        >
+                                            {{ medicine }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Batch/Lot Number Selection Second -->
+                                <div class="mb-3" v-if="selectedMedicineType">
                                     <label for="lot_number" class="block text-sm font-medium text-gray-700">Batch/Lot Number</label>
                                     <select
-                                        v-model="selectedLotNumber"
+                                        v-model="selectedDistributionId"
                                         id="lot_number"
                                         @change="handleLotNumberChange"
                                         class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
@@ -167,32 +210,11 @@ onMounted(() => {
                                     >
                                         <option value="" disabled>Select a batch/lot number</option>
                                         <option
-                                            v-for="lotNumber in lotNumberOptions"
-                                            :key="lotNumber"
-                                            :value="lotNumber"
-                                        >
-                                            {{ lotNumber }}
-                                        </option>
-                                    </select>
-                                </div>
-
-                                <!-- Medicine Selection Second -->
-                                <div class="mb-3" v-if="selectedLotNumber">
-                                    <label for="medicine_id" class="block text-sm font-medium text-gray-700">Medicine</label>
-                                    <select
-                                        v-model="selectedDistributionId"
-                                        id="medicine_id"
-                                        @change="handleMedicineChange"
-                                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                                        required
-                                    >
-                                        <option value="" disabled>Select a medicine</option>
-                                        <option
-                                            v-for="option in medicineOptions"
+                                            v-for="option in lotNumberOptions"
                                             :key="option.id"
                                             :value="option.id.toString()"
                                         >
-                                            {{ option.name }} (Available: {{ option.stocks }})
+                                            {{ option.lot_number }} - Expires: {{ formatDate(option.expiration_date) }} (Available: {{ option.stocks }})
                                         </option>
                                     </select>
                                     <div v-if="form.errors.distribution_id" class="text-red-500 text-xs mt-1">

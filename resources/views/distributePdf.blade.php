@@ -48,7 +48,7 @@
     </style>
 </head>
 <body>
-
+        <h3>Lot Number / Batch: {{ $distributions->first()->inventory->lot_number ?? 'N/A' }}</h3>
     <table>
         <thead>
             <tr>

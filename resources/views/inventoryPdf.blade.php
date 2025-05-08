@@ -50,7 +50,8 @@
     </style>
 </head>
 <body>
-  
+    <h3>Lot Number / Batch: {{ $inventories->first()->lot_number }}</h3>
+
     <table>
         <thead>
             <tr>
