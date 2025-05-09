@@ -98,6 +98,17 @@ class InventoryController extends Controller
     }
 }
 
+
+public function destroy($id)
+{
+    $item = Inventory::findOrFail($id);
+    $item->delete();
+
+    return response()->json(['message' => 'Item deleted successfully.']);
+}
+
+
+
     
     
 }

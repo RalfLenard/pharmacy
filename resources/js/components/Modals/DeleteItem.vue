@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { XIcon } from 'lucide-vue-next';
+import axios from 'axios';
 
 const props = defineProps({
   isOpen: {
@@ -13,10 +14,20 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'confirm']);
-
-const handleConfirm = () => {
-  emit('confirm', props.item.id);
+const handleConfirm = async () => {
+  try {
+    // Make sure this matches your Laravel route
+    await axios.delete(`/inventory-delete/${props.item.id}`);
+    console.log('Deleted successfully');
+    emit('confirm', props.item.id); // Optional: notify parent
+    window.location.reload(); // 🔄 Reload the page
+  } catch (error) {
+    console.error('Failed to delete item:', error);
+  } finally {
+    emit('close'); // Close modal either way
+  }
 };
+
 </script>
 
 <template>

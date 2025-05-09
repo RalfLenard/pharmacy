@@ -1,0 +1,9 @@
+<VirtualHost *:80>
+   ServerAdmin admin@municipalsanitation.com
+   DocumentRoot "C:/xampp/htdocs/sanitary/public"
+   ServerName  municipal-sanitation.com
+   <Directory "C:/xampp/htdocs/sanitary/public">
+	AllowOverride All
+	Require all granted
+   </Directory>
+</VirtualHost>
