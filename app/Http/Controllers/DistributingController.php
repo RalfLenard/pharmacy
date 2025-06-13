@@ -72,6 +72,27 @@ class DistributingController extends Controller
             return redirect()->back()->with('error', 'An unexpected error occurred: ' . $e->getMessage());
         }
     }
+
+
+    public function delete($id)
+    {
+        try {
+            $distributed = Distribution::findOrFail($id);
+            $distributed->delete();
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Distribution record deleted successfully.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting the record.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
     
     
 }

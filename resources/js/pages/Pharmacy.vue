@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/vue3';
-import dayjs from 'dayjs';
-import { PlusCircle, Search, Edit, Trash2, Package, ChevronDown, ArrowUpDown } from 'lucide-vue-next';
-import { ref, computed, onMounted, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+import dayjs from 'dayjs';
+import { AlertCircle, ArrowUpDown, CheckCircle, ChevronDown, Search, Trash2, XCircle } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -29,26 +28,32 @@ const sortDirection = ref('asc');
 const selectedRemarkSort = ref('Pharmacy'); // Default to "Pharmacy" remarks
 const showModalRemarksPdf = ref(false);
 const modalRemarksValue = ref('');
-const modalLotNumberValue = ref(''); 
+const modalLotNumberValue = ref('');
 
 const flashMessage = ref('');
 const flashType = ref('');
 const showFlash = ref(false);
 
+// Delete modal state
+const showDeleteModal = ref(false);
+const itemToDelete = ref(null);
+const isDeleting = ref(false);
+const darkMode = ref(false); // Add darkMode ref for styling consistency
+
 // Debug function to check what flash messages are available
 const checkFlashMessages = () => {
     console.log('Page props:', page.props);
-    
+
     // Check for flash messages in different possible locations
     if (page.props.flash) {
         console.log('Flash messages from page.props.flash:', page.props.flash);
     }
-    
+
     // Check for Laravel's default session flash messages
     if (page.props.errors) {
         console.log('Errors:', page.props.errors);
     }
-    
+
     // Check for success message
     if (page.props.success) {
         console.log('Success message:', page.props.success);
@@ -60,17 +65,53 @@ const displayFlash = (message, type = 'success') => {
     flashMessage.value = message;
     flashType.value = type;
     showFlash.value = true;
-    
+
     // Auto-hide after 5 seconds
     setTimeout(() => {
         showFlash.value = false;
     }, 5000);
 };
 
+// Delete item function
+const deleteItem = (item) => {
+    itemToDelete.value = item;
+    showDeleteModal.value = true;
+};
+
+// Confirm delete function
+const confirmDelete = async () => {
+    if (!itemToDelete.value) return;
+
+    isDeleting.value = true;
+
+    try {
+        const response = await axios.delete(`/distribution/delete/${itemToDelete.value.id}`);
+
+        if (response.data.success) {
+            // Remove the item from the local data
+            const index = distributed.value.findIndex((item) => item.id === itemToDelete.value.id);
+            if (index !== -1) {
+                distributed.value.splice(index, 1);
+            }
+
+            displayFlash(response.data.message || 'Distribution record deleted successfully.', 'success');
+        } else {
+            displayFlash(response.data.message || 'Failed to delete record.', 'error');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        displayFlash(error.response?.data?.message || 'An error occurred while deleting the record.', 'error');
+    } finally {
+        isDeleting.value = false;
+        showDeleteModal.value = false;
+        itemToDelete.value = null;
+    }
+};
+
 // Check for flash messages on component mount and when page props change
 onMounted(() => {
     checkFlashMessages();
-    
+
     // Check for flash messages in different possible locations
     if (page.props.flash?.success) {
         displayFlash(page.props.flash.success, 'success');
@@ -84,28 +125,35 @@ onMounted(() => {
 });
 
 // Watch for changes in page props to detect new flash messages
-watch(() => page.props, (newProps) => {
-    checkFlashMessages();
-    
-    if (newProps.flash?.success) {
-        displayFlash(newProps.flash.success, 'success');
-    } else if (newProps.flash?.error) {
-        displayFlash(newProps.flash.error, 'error');
-    } else if (newProps.success) {
-        displayFlash(newProps.success, 'success');
-    } else if (newProps.error) {
-        displayFlash(newProps.error, 'error');
-    }
-}, { deep: true });
+watch(
+    () => page.props,
+    (newProps) => {
+        checkFlashMessages();
 
+        if (newProps.flash?.success) {
+            displayFlash(newProps.flash.success, 'success');
+        } else if (newProps.flash?.error) {
+            displayFlash(newProps.flash.error, 'error');
+        } else if (newProps.success) {
+            displayFlash(newProps.success, 'success');
+        } else if (newProps.error) {
+            displayFlash(newProps.error, 'error');
+        }
+    },
+    { deep: true },
+);
 
+const modalMonthValue = ref('');
+const modalYearValue = ref('');
 
 const generateRemarksPdf = async () => {
     const remarks = modalRemarksValue.value.trim();
     const lot = modalLotNumberValue.value.trim();
+    const month = modalMonthValue.value;
+    const year = modalYearValue.value;
 
     if (!remarks) {
-        displayFlash('Please enter a valid remark.', 'error');
+        displayFlash('Please enter a valid remark (or type "all").', 'error');
         return;
     }
 
@@ -114,18 +162,26 @@ const generateRemarksPdf = async () => {
             params: {
                 remarks: remarks,
                 lot_number: lot || undefined,
+                month: month || undefined,
+                year: year || undefined,
             },
         });
 
         if (response.data.exists) {
+            const query = new URLSearchParams();
+
+            if (lot) query.append('lot_number', lot);
+            if (month) query.append('month', month);
+            if (year) query.append('year', year);
+
+            const queryString = query.toString() ? `?${query.toString()}` : '';
             const remarkEncoded = encodeURIComponent(remarks);
-            const lotEncoded = lot ? `?lot_number=${encodeURIComponent(lot)}` : '';
-            window.open(`/reports/distribution/remarks/${remarkEncoded}${lotEncoded}`, '_blank');
+
+            window.open(`/reports/distribution/remarks/${remarkEncoded}${queryString}`, '_blank');
             displayFlash(`Generating PDF for remarks: ${remarks}`, 'success');
         } else {
-            displayFlash('No distributions found for this remark and lot number combination.', 'error');
+            displayFlash('No distributions found for the selected filters.', 'error');
         }
-
     } catch (error) {
         console.error(error);
         displayFlash('Failed to check distributions. Please try again.', 'error');
@@ -136,17 +192,13 @@ const generateRemarksPdf = async () => {
 
 // Get unique batch numbers for the dropdown
 const uniqueBatchNumbers = computed(() => {
-    const batches = distributed.value
-        .map(item => item.inventory?.lot_number)
-        .filter(Boolean);
+    const batches = distributed.value.map((item) => item.inventory?.lot_number).filter(Boolean);
     return [...new Set(batches)].sort();
 });
 
 // Get unique remarks for the dropdown
 const uniqueRemarks = computed(() => {
-    const remarks = distributed.value
-        .map(item => item.remarks)
-        .filter(Boolean);
+    const remarks = distributed.value.map((item) => item.remarks).filter(Boolean);
 
     // Ensure "Pharmacy" is always in the list, even if not in the data
     const uniqueSet = new Set(remarks);
@@ -158,7 +210,7 @@ const uniqueRemarks = computed(() => {
 // Filtered and sorted inventory
 const filteredInventory = computed(() => {
     // First filter the items
-    const filtered = distributed.value.filter(item => {
+    const filtered = distributed.value.filter((item) => {
         // Apply batch filter first
         if (selectedBatch.value && item.inventory?.lot_number !== selectedBatch.value) {
             return false;
@@ -262,7 +314,7 @@ function formatDate(dateString: string | null | undefined): string {
     return date.toLocaleDateString(undefined, {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
     });
 }
 
@@ -303,7 +355,7 @@ const logFilters = () => {
         sortDirection: sortDirection.value,
         selectedRemarkSort: selectedRemarkSort.value,
         filteredCount: filteredInventory.value.length,
-        totalCount: distributed.value.length
+        totalCount: distributed.value.length,
     });
 };
 
@@ -357,86 +409,108 @@ onMounted(() => {
 </script>
 
 <template>
-
     <Head title="Pharmacy" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 p-6 w-full min-h-screen w-full">
+        <div class="flex h-full min-h-screen w-full flex-1 flex-col gap-4 p-6">
             <div class="w-full">
-
                 <transition
-                enter-active-class="transform ease-out duration-300 transition"
-                enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-                enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
-                leave-active-class="transition ease-in duration-200"
-                leave-from-class="opacity-100"
-                leave-to-class="opacity-0"
-            >
-                <div v-if="showFlash" 
-                    class="fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg shadow-lg"
-                    :class="[
-                        flashType === 'success' 
-                            ? (darkMode ? 'bg-green-800 text-green-100 border border-green-700' : 'bg-green-100 text-green-800 border border-green-200') 
-                            : (darkMode ? 'bg-red-800 text-red-100 border border-red-700' : 'bg-red-100 text-red-800 border border-red-200')
-                    ]">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <CheckCircle v-if="flashType === 'success'" class="h-5 w-5" 
-                                :class="darkMode ? 'text-green-200' : 'text-green-500'" />
-                            <AlertCircle v-else class="h-5 w-5" 
-                                :class="darkMode ? 'text-red-200' : 'text-red-500'" />
-                        </div>
-                        <div class="ml-3">
-                            <p class="text-sm font-medium">{{ flashMessage }}</p>
-                        </div>
-                        <div class="ml-auto pl-3">
-                            <button @click="showFlash = false" 
-                                class="inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                                :class="[
-                                    flashType === 'success' 
-                                        ? (darkMode ? 'text-green-200 hover:bg-green-700 focus:ring-green-600' : 'text-green-500 hover:bg-green-200 focus:ring-green-400') 
-                                        : (darkMode ? 'text-red-200 hover:bg-red-700 focus:ring-red-600' : 'text-red-500 hover:bg-red-200 focus:ring-red-400')
-                                ]">
-                                <span class="sr-only">Dismiss</span>
-                                <XCircle class="h-4 w-4" />
-                            </button>
+                    enter-active-class="transform ease-out duration-300 transition"
+                    enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+                    enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+                    leave-active-class="transition ease-in duration-200"
+                    leave-from-class="opacity-100"
+                    leave-to-class="opacity-0"
+                >
+                    <div
+                        v-if="showFlash"
+                        class="fixed top-4 right-4 z-50 max-w-md rounded-lg p-4 shadow-lg"
+                        :class="[
+                            flashType === 'success'
+                                ? darkMode
+                                    ? 'border border-green-700 bg-green-800 text-green-100'
+                                    : 'border border-green-200 bg-green-100 text-green-800'
+                                : darkMode
+                                  ? 'border border-red-700 bg-red-800 text-red-100'
+                                  : 'border border-red-200 bg-red-100 text-red-800',
+                        ]"
+                    >
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <CheckCircle v-if="flashType === 'success'" class="h-5 w-5" :class="darkMode ? 'text-green-200' : 'text-green-500'" />
+                                <AlertCircle v-else class="h-5 w-5" :class="darkMode ? 'text-red-200' : 'text-red-500'" />
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium">{{ flashMessage }}</p>
+                            </div>
+                            <div class="ml-auto pl-3">
+                                <button
+                                    @click="showFlash = false"
+                                    class="inline-flex rounded-md p-1.5 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                                    :class="[
+                                        flashType === 'success'
+                                            ? darkMode
+                                                ? 'text-green-200 hover:bg-green-700 focus:ring-green-600'
+                                                : 'text-green-500 hover:bg-green-200 focus:ring-green-400'
+                                            : darkMode
+                                              ? 'text-red-200 hover:bg-red-700 focus:ring-red-600'
+                                              : 'text-red-500 hover:bg-red-200 focus:ring-red-400',
+                                    ]"
+                                >
+                                    <span class="sr-only">Dismiss</span>
+                                    <XCircle class="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </transition>
-
+                </transition>
 
                 <div class="container mx-auto">
                     <!-- Header -->
-                    <div class="flex items-center justify-between border-b pb-4 mb-6">
+                    <div class="mb-6 flex items-center justify-between border-b pb-4">
                         <h1 class="text-3xl font-bold text-gray-800">Pharmacy Inventory</h1>
                     </div>
 
                     <!-- Filters -->
-                    <div class="flex flex-col md:flex-row md:items-end gap-4 mb-6">
+                    <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
                         <!-- Batch Number Dropdown -->
                         <div class="w-full md:w-1/4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Batch Number</label>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Batch Number</label>
                             <div class="relative" id="batch-dropdown">
-                                <button @click="isDropdownOpen = !isDropdownOpen"
-                                    class="flex items-center justify-between w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <button
+                                    @click="isDropdownOpen = !isDropdownOpen"
+                                    class="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                >
                                     <span>{{ selectedBatch || 'All Batches' }}</span>
                                     <ChevronDown class="h-4 w-4 text-gray-500" />
                                 </button>
 
                                 <!-- Dropdown Menu -->
-                                <div v-if="isDropdownOpen"
-                                    class="absolute z-10 mt-1 w-full rounded-md bg-white shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+                                <div
+                                    v-if="isDropdownOpen"
+                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                >
                                     <div class="py-1">
-                                        <button @click="selectedBatch = ''; isDropdownOpen = false"
+                                        <button
+                                            @click="
+                                                selectedBatch = '';
+                                                isDropdownOpen = false;
+                                            "
                                             class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedBatch === '' ? 'bg-gray-100 font-medium' : ''">
+                                            :class="selectedBatch === '' ? 'bg-gray-100 font-medium' : ''"
+                                        >
                                             All Batches
                                         </button>
-                                        <button v-for="batch in uniqueBatchNumbers" :key="batch"
-                                            @click="selectedBatch = batch; isDropdownOpen = false"
+                                        <button
+                                            v-for="batch in uniqueBatchNumbers"
+                                            :key="batch"
+                                            @click="
+                                                selectedBatch = batch;
+                                                isDropdownOpen = false;
+                                            "
                                             class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedBatch === batch ? 'bg-gray-100 font-medium' : ''">
+                                            :class="selectedBatch === batch ? 'bg-gray-100 font-medium' : ''"
+                                        >
                                             {{ batch }}
                                         </button>
                                     </div>
@@ -446,27 +520,42 @@ onMounted(() => {
 
                         <!-- Remarks Dropdown -->
                         <div class="w-full md:w-1/4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Pharmacy Remarks</label>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Pharmacy Remarks</label>
                             <div class="relative" id="remarks-dropdown">
-                                <button @click="isRemarksDropdownOpen = !isRemarksDropdownOpen"
-                                    class="flex items-center justify-between w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <button
+                                    @click="isRemarksDropdownOpen = !isRemarksDropdownOpen"
+                                    class="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                >
                                     <span>{{ selectedRemarkSort }}</span>
                                     <ChevronDown class="h-4 w-4 text-gray-500" />
                                 </button>
 
                                 <!-- Dropdown Menu -->
-                                <div v-if="isRemarksDropdownOpen"
-                                    class="absolute z-10 mt-1 w-full rounded-md bg-white shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+                                <div
+                                    v-if="isRemarksDropdownOpen"
+                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                >
                                     <div class="py-1">
-                                        <button @click="selectedRemarkSort = 'all'; isRemarksDropdownOpen = false"
+                                        <button
+                                            @click="
+                                                selectedRemarkSort = 'all';
+                                                isRemarksDropdownOpen = false;
+                                            "
                                             class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedRemarkSort === 'all' ? 'bg-gray-100 font-medium' : ''">
+                                            :class="selectedRemarkSort === 'all' ? 'bg-gray-100 font-medium' : ''"
+                                        >
                                             All Remarks
                                         </button>
-                                        <button v-for="remark in uniqueRemarks" :key="remark"
-                                            @click="selectedRemarkSort = remark; isRemarksDropdownOpen = false"
+                                        <button
+                                            v-for="remark in uniqueRemarks"
+                                            :key="remark"
+                                            @click="
+                                                selectedRemarkSort = remark;
+                                                isRemarksDropdownOpen = false;
+                                            "
                                             class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedRemarkSort === remark ? 'bg-gray-100 font-medium' : ''">
+                                            :class="selectedRemarkSort === remark ? 'bg-gray-100 font-medium' : ''"
+                                        >
                                             {{ remark }}
                                         </button>
                                     </div>
@@ -476,153 +565,152 @@ onMounted(() => {
 
                         <!-- Search Input -->
                         <div class="w-full md:flex-1">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Search</label>
                             <div class="relative">
-                                <Search class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                                <input v-model="searchTerm" type="text"
+                                <Search class="absolute top-2.5 left-3 h-4 w-4 text-gray-400" />
+                                <input
+                                    v-model="searchTerm"
+                                    type="text"
                                     placeholder="Search by brand, generic name, batch, remarks..."
-                                    class="block w-full pl-10 pr-3 py-2 rounded-md border border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-                                <button v-if="searchTerm" @click="searchTerm = ''"
-                                    class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                    class="block w-full rounded-md border border-gray-300 py-2 pr-3 pl-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                />
+                                <button v-if="searchTerm" @click="searchTerm = ''" class="absolute top-2.5 right-3 text-gray-400 hover:text-gray-600">
                                     <span class="sr-only">Clear search</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20"
-                                        fill="currentColor">
-                                        <path fill-rule="evenodd"
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path
+                                            fill-rule="evenodd"
                                             d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                            clip-rule="evenodd" />
+                                            clip-rule="evenodd"
+                                        />
                                     </svg>
                                 </button>
                             </div>
                         </div>
 
                         <!-- Generate PDF Button -->
-                        <div class="w-full md:w-auto self-end">
-                            <button @click="showModalRemarksPdf = true"
-                                class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 shadow">
+                        <div class="w-full self-end md:w-auto">
+                            <button @click="showModalRemarksPdf = true" class="rounded bg-indigo-600 px-4 py-2 text-white shadow hover:bg-indigo-700">
                                 Generate Remarks PDF
                             </button>
                         </div>
-
-
-
-                        
                     </div>
 
-                    <!-- Results count -->
-                    <!-- <div class="mb-4 text-sm text-gray-600">
-                    Showing {{ filteredInventory.length }} {{ filteredInventory.length === 1 ? 'item' : 'items' }}
-                    <span v-if="selectedBatch"> with batch number <strong>{{ selectedBatch }}</strong></span>
-                    <span v-if="selectedRemarkSort !== 'all'"> with remarks <strong>{{ selectedRemarkSort }}</strong></span>
-                    <span> sorted by <strong>{{ sortField }}</strong> ({{ sortDirection === 'asc' ? 'ascending' : 'descending' }})</span>
-                </div> -->
-
                     <!-- Inventory Table -->
-                    <div class="bg-white rounded-lg shadow border overflow-hidden">
+                    <div class="overflow-hidden rounded-lg border bg-white shadow">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-100">
                                 <tr>
-                                    <th @click="toggleSort('date_distribute')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('date_distribute')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Date Distribute
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('date_distribute')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('date_distribute')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('brand_name')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('brand_name')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Brand Name
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('brand_name')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('brand_name')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('generic_name')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('generic_name')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Generic Name
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('generic_name')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('generic_name')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('lot_number')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('lot_number')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Lot/Batch
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('lot_number')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('lot_number')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('quantity')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('quantity')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Quantity
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('quantity')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('quantity')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('stocks')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('stocks')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Stocks on Hand
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('stocks')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('stocks')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('expiration_date')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('expiration_date')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Expires
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('expiration_date')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('expiration_date')" />
                                         </div>
                                     </th>
-                                    <th @click="toggleSort('remarks')"
-                                        class="px-6 py-3 text-left text-xs font-semibold text-gray-600 cursor-pointer group">
+                                    <th
+                                        @click="toggleSort('remarks')"
+                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                    >
                                         <div class="flex items-center">
                                             Remarks
-                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all"
-                                                :class="getSortIcon('remarks')" />
+                                            <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('remarks')" />
                                         </div>
                                     </th>
-                                    <!-- <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600">Actions</th> -->
+                                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
-                                <tr v-for="item in filteredInventory" :key="item.id"
-                                    class="hover:bg-gray-50 transition">
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ formatDate(item.date_distribute) }}
-                                    </td>
+                                <tr v-for="item in filteredInventory" :key="item.id" class="transition hover:bg-gray-50">
+                                    <td class="px-6 py-4 text-sm text-gray-700">{{ formatDate(item.date_distribute) }}</td>
                                     <td class="px-6 py-4 font-medium text-gray-900">{{ item.inventory.brand_name }}</td>
-                                    <td class="px-6 py-4 font-medium text-gray-900">{{ item.inventory.generic_name }}
-                                    </td>
+                                    <td class="px-6 py-4 font-medium text-gray-900">{{ item.inventory.generic_name }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-700">{{ item.inventory.lot_number }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-700">{{ item.quantity }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-700">{{ item.stocks }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700 flex items-center gap-2">
+                                    <td class="flex items-center gap-2 px-6 py-4 text-sm text-gray-700">
                                         {{ formatDate(item.inventory.expiration_date) }}
-                                        <span v-if="expirationStatus(item.inventory.expiration_date)"
+                                        <span
+                                            v-if="expirationStatus(item.inventory.expiration_date)"
                                             :class="badgeClass(expirationStatus(item.inventory.expiration_date))"
-                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border">
+                                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold"
+                                        >
                                             {{ expirationStatus(item.inventory.expiration_date) }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700">{{ item.remarks || '-' }}</td>
-                                    <!-- <td class="px-6 py-4 text-center">
+                                    <td class="px-6 py-4 text-center">
                                         <div class="flex justify-center gap-2">
-                                          
-                                            <button @click="openDistributeModal(item)"
-                                                class="text-green-600 hover:text-green-800 text-sm" title="Distribute">
-                                                <Package class="h-4 w-4" />
+                                            <button
+                                                @click="deleteItem(item)"
+                                                :class="darkMode ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-800'"
+                                                class="text-sm"
+                                                title="Delete"
+                                            >
+                                                <Trash2 class="h-4 w-4" />
                                             </button>
                                         </div>
-                                    </td> -->
+                                    </td>
                                 </tr>
                                 <tr v-if="filteredInventory.length === 0">
-                                    <td colspan="8" class="px-6 py-6 text-center text-gray-500 text-sm">
+                                    <td colspan="8" class="px-6 py-6 text-center text-sm text-gray-500">
                                         No inventory items found with the selected filters.
-                                        <button @click="resetFilters" class="text-blue-500 hover:underline ml-1">Reset
-                                            filters</button>
+                                        <button @click="resetFilters" class="ml-1 text-blue-500 hover:underline">Reset filters</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -632,34 +720,119 @@ onMounted(() => {
             </div>
         </div>
 
-       <!-- Modal for Generating PDF by Remarks -->
-        <div v-if="showModalRemarksPdf" class="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-6 rounded-lg shadow-lg w-full max-w-md">
-                <h3 class="text-lg font-semibold mb-4">Generate Distribution Report by Remarks</h3>
+        <!-- Modal for Generating PDF by Remarks -->
+        <div v-if="showModalRemarksPdf" class="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-lg bg-white p-6 text-gray-900 shadow-lg dark:bg-gray-800 dark:text-gray-100">
+                <h3 class="mb-4 text-lg font-semibold">Generate Distribution Report by Remarks</h3>
 
                 <!-- Remark Input -->
-                <label for="remarksInput" class="block text-sm font-medium mb-1">Enter Remark</label>
-                <input id="remarksInput" v-model="modalRemarksValue" type="text" placeholder="e.g., Dispensed"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                <label for="remarksInput" class="mb-1 block text-sm font-medium">Remark</label>
+                <input
+                    id="remarksInput"
+                    v-model="modalRemarksValue"
+                    type="text"
+                    placeholder="e.g., Dispensed or all"
+                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
 
                 <!-- Lot Number Input -->
-                <label for="lotNumberInput" class="block text-sm font-medium mb-1">Enter Lot Number (Optional)</label>
-                <input id="lotNumberInput" v-model="modalLotNumberValue" type="text" placeholder="e.g., LOT123"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                <label for="lotNumberInput" class="mb-1 block text-sm font-medium">Lot Number (Optional)</label>
+                <input
+                    id="lotNumberInput"
+                    v-model="modalLotNumberValue"
+                    type="text"
+                    placeholder="e.g., LOT123"
+                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
+
+                <!-- Month Select -->
+                <label for="monthSelect" class="mb-1 block text-sm font-medium">Select Month (Optional)</label>
+                <select
+                    id="monthSelect"
+                    v-model="modalMonthValue"
+                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                >
+                    <option value="">-- Select Month --</option>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+
+                <!-- Year Input -->
+                <label for="yearInput" class="mb-1 block text-sm font-medium">Enter Year (Optional)</label>
+                <input
+                    id="yearInput"
+                    v-model="modalYearValue"
+                    type="number"
+                    placeholder="e.g., 2025"
+                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
 
                 <div class="flex justify-end gap-2">
-                    <button @click="showModalRemarksPdf = false"
-                            class="px-4 py-2 text-gray-700 dark:text-gray-300 border rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <button
+                        @click="showModalRemarksPdf = false"
+                        class="rounded border px-4 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
                         Cancel
                     </button>
-                    <button @click="generateRemarksPdf"
-                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
-                        Generate
-                    </button>
+                    <button @click="generateRemarksPdf" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Generate</button>
                 </div>
             </div>
         </div>
 
+        <!-- Delete Confirmation Modal -->
+        <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-lg bg-white p-6 text-gray-900 shadow-lg dark:bg-gray-800 dark:text-gray-100">
+                <h3 class="mb-2 text-lg font-semibold">Confirm Deletion</h3>
 
+                <p class="mb-6 text-gray-600 dark:text-gray-300">
+                    Are you sure you want to delete this distribution record?
+                    <span class="font-medium">This action cannot be undone.</span>
+                </p>
+
+                <div v-if="itemToDelete" class="mb-6 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-700">
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div class="font-medium">Brand Name:</div>
+                        <div>{{ itemToDelete.inventory?.brand_name }}</div>
+
+                        <div class="font-medium">Generic Name:</div>
+                        <div>{{ itemToDelete.inventory?.generic_name }}</div>
+
+                        <div class="font-medium">Lot/Batch:</div>
+                        <div>{{ itemToDelete.inventory?.lot_number }}</div>
+
+                        <div class="font-medium">Quantity:</div>
+                        <div>{{ itemToDelete.quantity }}</div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button
+                        @click="showDeleteModal = false"
+                        class="rounded border px-4 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                        :disabled="isDeleting"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="confirmDelete"
+                        class="flex items-center gap-2 rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                        :disabled="isDeleting"
+                    >
+                        <span v-if="isDeleting">Deleting...</span>
+                        <span v-else>Delete</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </AppLayout>
 </template>

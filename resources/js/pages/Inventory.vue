@@ -103,33 +103,41 @@ const isDeletingItem = ref(false);
 const selectedItem = ref(null);
 const showModalPdf = ref(false);
 const modalLotNumber = ref('');
-
+const modalMonth = ref('');
+const modalYear = ref('');
 
 
 const generatePdfByLot = async () => {
-    const trimmedLot = modalLotNumber.value.trim();
-
-    if (!trimmedLot) {
-        displayFlash('Please enter a valid lot number.', 'error');
-        return;
-    }
+    const lot = modalLotNumber.value.trim();
+    const month = modalMonth.value;
+    const year = modalYear.value;
 
     try {
-        const response = await axios.get(route('reports.inventory.check', trimmedLot));
-
-        if (response.data.exists) {
-            window.open(route('reports.inventory.pdf', trimmedLot), '_blank');
-            displayFlash(`Generating PDF for Lot: ${trimmedLot}`, 'success');
-        } else {
-            displayFlash('No inventory found for this lot number.', 'error');
+        // Check if specific lot exists (only if lot number is filled)
+        if (lot) {
+            const response = await axios.get(route('reports.inventory.check', lot));
+            if (!response.data.exists) {
+                displayFlash('No inventory found for this lot number.', 'error');
+                return;
+            }
         }
+
+        const params = new URLSearchParams();
+        if (lot) params.append('lot_number', lot);
+        if (month) params.append('month', month);
+        if (year) params.append('year', year);
+
+        const pdfUrl = route('reports.inventory.pdf') + '?' + params.toString();
+        window.open(pdfUrl, '_blank');
+        displayFlash('Generating inventory PDF report...', 'success');
     } catch (error) {
         console.error(error);
-        displayFlash('Something went wrong while checking inventory.', 'error');
+        displayFlash('Error generating PDF. Please try again.', 'error');
     }
 
     showModalPdf.value = false;
 };
+
 
 
 // Dark mode state
@@ -502,31 +510,54 @@ const badgeClass = (status: string) => {
         <!-- Modal for PDF generation -->
 
         <div v-if="showModalPdf"
-            class="fixed inset-0 backdrop-blur-sm bg-white/30 dark:bg-gray-900/30 flex items-center justify-center z-50">
-            <div
-                class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-6 rounded-lg shadow-lg w-full max-w-md">
-                <h3 class="text-lg font-semibold mb-4">
-                    Generate Inventory Report PDF
-                </h3>
+    class="fixed inset-0 backdrop-blur-sm bg-white/30 dark:bg-gray-900/30 flex items-center justify-center z-50">
+    <div
+        class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h3 class="text-lg font-semibold mb-4">
+            Generate Inventory Report PDF
+        </h3>
 
-                <label for="lotInput" class="block text-sm font-medium mb-1">
-                    Enter Lot Number
-                </label>
-                <input id="lotInput" v-model="modalLotNumber" type="text" placeholder="e.g., LOT123"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        <!-- Lot Number Input -->
+        <label for="lotInput" class="block text-sm font-medium mb-1">
+            Enter Lot Number (optional)
+        </label>
+        <input id="lotInput" v-model="modalLotNumber" type="text" placeholder="e.g., LOT123"
+            class="w-full p-2 mb-4 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
 
-                <div class="flex justify-end gap-2">
-                    <button @click="showModalPdf = false"
-                        class="px-4 py-2 text-gray-700 dark:text-gray-300 border rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                        Cancel
-                    </button>
-                    <button @click="generatePdfByLot"
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
-                        Generate
-                    </button>
-                </div>
-            </div>
+        <!-- Month Dropdown -->
+        <label for="monthInput" class="block text-sm font-medium mb-1">
+            Select Month (optional)
+        </label>
+        <select id="monthInput" v-model="modalMonth"
+            class="w-full p-2 mb-4 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">All Months</option>
+            <option v-for="m in 12" :key="m" :value="m">
+                {{ new Date(0, m - 1).toLocaleString('default', { month: 'long' }) }}
+            </option>
+        </select>
+
+        <!-- Year Number Input -->
+        <label for="yearInput" class="block text-sm font-medium mb-1">
+            Enter Year (optional)
+        </label>
+        <input id="yearInput" v-model="modalYear" type="number" placeholder="e.g., 2025"
+            class="w-full p-2 mb-4 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end gap-2">
+            <button @click="showModalPdf = false"
+                class="px-4 py-2 text-gray-700 dark:text-gray-300 border rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                Cancel
+            </button>
+            <button @click="generatePdfByLot"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
+                Generate
+            </button>
         </div>
+    </div>
+</div>
+
+
 
     </AppLayout>
 

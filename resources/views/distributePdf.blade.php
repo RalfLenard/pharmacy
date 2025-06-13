@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Distribution Report - Remarks: {{ $remarks }}</title>
+    <title>Distribution Report - Remarks: {{ $remarks ?? 'All' }}</title>
     <style>
         body {
             font-family: sans-serif;
@@ -11,10 +11,15 @@
             margin: 20px;
         }
 
-        h1 {
-            font-size: 24px;
-            font-weight: 600;
+        h1, h3 {
+            margin-bottom: 10px;
+        }
+
+        .summary {
             margin-bottom: 20px;
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            background-color: #f3f4f6;
         }
 
         table {
@@ -31,8 +36,8 @@
         }
 
         th {
-            background-color: #f3f4f6;
-            font-weight: 600;
+            background-color: #e5e7eb;
+            font-weight: bold;
         }
 
         tr:nth-child(even) {
@@ -48,7 +53,15 @@
     </style>
 </head>
 <body>
-        <h3>Lot Number / Batch: {{ $distributions->first()->inventory->lot_number ?? 'N/A' }}</h3>
+    <h1>Distribution Report</h1>
+
+    <div class="summary">
+        <p><strong>Remarks:</strong> {{ $remarks ?? 'All' }}</p>
+        <p><strong>Lot Number:</strong> {{ $lot_number ?? 'All' }}</p>
+        <p><strong>Month:</strong> {{ $month ? \Carbon\Carbon::create()->month($month)->format('F') : 'All' }}</p>
+        <p><strong>Year:</strong> {{ $year ?? 'All' }}</p>
+    </div>
+
     <table>
         <thead>
             <tr>
@@ -68,7 +81,7 @@
                     <td>{{ $distribution->inventory->generic_name ?? 'N/A' }}</td>
                     <td>{{ $distribution->inventory->lot_number ?? 'N/A' }}</td>
                     <td>{{ $distribution->quantity }}</td>
-                    <td>{{ \Carbon\Carbon::parse($distribution->created_at)->format('Y-m-d') }}</td>
+                    <td>{{ \Carbon\Carbon::parse($distribution->date_distribute)->format('Y-m-d') }}</td>
                 </tr>
             @endforeach
         </tbody>
