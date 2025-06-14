@@ -11,14 +11,30 @@ use Inertia\Inertia;
 class InventoryController extends Controller
 {
     
-     public function index()
+    public function index(Request $request)
     {
-        $inventory = Inventory::orderBy('created_at', 'desc')->get();
-    
+        $search = $request->input('search');
+
+        $inventory = Inventory::query()
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('brand_name', 'like', "%{$search}%")
+                    ->orWhere('generic_name', 'like', "%{$search}%")
+                    ->orWhere('lot_number', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate(50)
+            ->appends(['search' => $search]); // <-- Keep search term on next pages
+
         return Inertia::render('Inventory', [
-            'inventory' => $inventory, // Change this to match the prop name
+            'inventory' => $inventory,
+            'filters' => [
+                'search' => $search,
+            ],
         ]);
     }
+
     public function store(Request $request)
     {
         try {

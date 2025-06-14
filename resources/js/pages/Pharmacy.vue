@@ -4,8 +4,9 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import { AlertCircle, ArrowUpDown, CheckCircle, ChevronDown, Search, Trash2, XCircle } from 'lucide-vue-next';
+import { AlertCircle, ArrowUpDown, CheckCircle, ChevronDown, Search, Trash2, XCircle, FileText, Filter } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -38,7 +39,6 @@ const showFlash = ref(false);
 const showDeleteModal = ref(false);
 const itemToDelete = ref(null);
 const isDeleting = ref(false);
-const darkMode = ref(false); // Add darkMode ref for styling consistency
 
 // Debug function to check what flash messages are available
 const checkFlashMessages = () => {
@@ -300,8 +300,8 @@ const toggleSort = (field) => {
 
 // Get sort icon class
 const getSortIcon = (field) => {
-    if (sortField.value !== field) return 'text-gray-400 opacity-0 group-hover:opacity-100';
-    return sortDirection.value === 'asc' ? 'text-gray-700' : 'text-gray-700 transform rotate-180';
+    if (sortField.value !== field) return 'text-green-400 opacity-0 group-hover:opacity-100';
+    return sortDirection.value === 'asc' ? 'text-green-700' : 'text-green-700 transform rotate-180';
 };
 
 // Format date for display
@@ -412,8 +412,9 @@ onMounted(() => {
     <Head title="Pharmacy" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full min-h-screen w-full flex-1 flex-col gap-4 p-6">
-            <div class="w-full">
+        <div class="flex h-full min-h-screen w-full flex-1 flex-col gap-4 p-6 bg-green-50">
+            <div class="w-full max-w-none">
+                <!-- Flash Message Notification -->
                 <transition
                     enter-active-class="transform ease-out duration-300 transition"
                     enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
@@ -427,18 +428,14 @@ onMounted(() => {
                         class="fixed top-4 right-4 z-50 max-w-md rounded-lg p-4 shadow-lg"
                         :class="[
                             flashType === 'success'
-                                ? darkMode
-                                    ? 'border border-green-700 bg-green-800 text-green-100'
-                                    : 'border border-green-200 bg-green-100 text-green-800'
-                                : darkMode
-                                  ? 'border border-red-700 bg-red-800 text-red-100'
-                                  : 'border border-red-200 bg-red-100 text-red-800',
+                                ? 'border border-green-200 bg-green-100 text-green-800'
+                                : 'border border-red-200 bg-red-100 text-red-800'
                         ]"
                     >
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
-                                <CheckCircle v-if="flashType === 'success'" class="h-5 w-5" :class="darkMode ? 'text-green-200' : 'text-green-500'" />
-                                <AlertCircle v-else class="h-5 w-5" :class="darkMode ? 'text-red-200' : 'text-red-500'" />
+                                <CheckCircle v-if="flashType === 'success'" class="h-5 w-5 text-green-500" />
+                                <AlertCircle v-else class="h-5 w-5 text-red-500" />
                             </div>
                             <div class="ml-3">
                                 <p class="text-sm font-medium">{{ flashMessage }}</p>
@@ -449,12 +446,8 @@ onMounted(() => {
                                     class="inline-flex rounded-md p-1.5 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                                     :class="[
                                         flashType === 'success'
-                                            ? darkMode
-                                                ? 'text-green-200 hover:bg-green-700 focus:ring-green-600'
-                                                : 'text-green-500 hover:bg-green-200 focus:ring-green-400'
-                                            : darkMode
-                                              ? 'text-red-200 hover:bg-red-700 focus:ring-red-600'
-                                              : 'text-red-500 hover:bg-red-200 focus:ring-red-400',
+                                            ? 'text-green-500 hover:bg-green-200 focus:ring-green-400'
+                                            : 'text-red-500 hover:bg-red-200 focus:ring-red-400'
                                     ]"
                                 >
                                     <span class="sr-only">Dismiss</span>
@@ -465,30 +458,38 @@ onMounted(() => {
                     </div>
                 </transition>
 
-                <div class="container mx-auto">
-                    <!-- Header -->
-                    <div class="mb-6 flex items-center justify-between border-b pb-4">
-                        <h1 class="text-3xl font-bold text-gray-800">Pharmacy Inventory</h1>
+                <!-- Header -->
+                <div class="mb-8 flex items-center justify-between border-b border-green-200 pb-6">
+                    <div>
+                        <h1 class="text-4xl font-bold text-green-800 mb-2">Pharmacy Distribution</h1>
+                        <p class="text-green-600">Track and manage distributed medications and pharmacy inventory</p>
                     </div>
+                </div>
 
-                    <!-- Filters -->
-                    <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+                <!-- Filters Section -->
+                <div class="bg-white rounded-xl shadow-sm border border-green-100 p-6 mb-8">
+                    <div class="flex items-center gap-2 mb-4">
+                        <Filter class="h-5 w-5 text-green-600" />
+                        <h3 class="text-lg font-semibold text-green-800">Filter & Search Options</h3>
+                    </div>
+                    
+                    <div class="flex flex-col gap-6 lg:flex-row lg:items-end">
                         <!-- Batch Number Dropdown -->
-                        <div class="w-full md:w-1/4">
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Batch Number</label>
+                        <div class="w-full lg:w-1/4">
+                            <label class="mb-2 block text-sm font-medium text-green-700">Batch Number</label>
                             <div class="relative" id="batch-dropdown">
                                 <button
                                     @click="isDropdownOpen = !isDropdownOpen"
-                                    class="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    class="flex w-full items-center justify-between rounded-lg border border-green-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 transition"
                                 >
-                                    <span>{{ selectedBatch || 'All Batches' }}</span>
-                                    <ChevronDown class="h-4 w-4 text-gray-500" />
+                                    <span class="text-gray-700">{{ selectedBatch || 'All Batches' }}</span>
+                                    <ChevronDown class="h-4 w-4 text-green-500" />
                                 </button>
 
                                 <!-- Dropdown Menu -->
                                 <div
                                     v-if="isDropdownOpen"
-                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-green-200 bg-white shadow-lg"
                                 >
                                     <div class="py-1">
                                         <button
@@ -496,8 +497,8 @@ onMounted(() => {
                                                 selectedBatch = '';
                                                 isDropdownOpen = false;
                                             "
-                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedBatch === '' ? 'bg-gray-100 font-medium' : ''"
+                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition"
+                                            :class="selectedBatch === '' ? 'bg-green-100 font-medium text-green-800' : 'text-gray-700'"
                                         >
                                             All Batches
                                         </button>
@@ -508,8 +509,8 @@ onMounted(() => {
                                                 selectedBatch = batch;
                                                 isDropdownOpen = false;
                                             "
-                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedBatch === batch ? 'bg-gray-100 font-medium' : ''"
+                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition"
+                                            :class="selectedBatch === batch ? 'bg-green-100 font-medium text-green-800' : 'text-gray-700'"
                                         >
                                             {{ batch }}
                                         </button>
@@ -519,21 +520,21 @@ onMounted(() => {
                         </div>
 
                         <!-- Remarks Dropdown -->
-                        <div class="w-full md:w-1/4">
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Pharmacy Remarks</label>
+                        <div class="w-full lg:w-1/4">
+                            <label class="mb-2 block text-sm font-medium text-green-700">Pharmacy Remarks</label>
                             <div class="relative" id="remarks-dropdown">
                                 <button
                                     @click="isRemarksDropdownOpen = !isRemarksDropdownOpen"
-                                    class="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    class="flex w-full items-center justify-between rounded-lg border border-green-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 transition"
                                 >
-                                    <span>{{ selectedRemarkSort }}</span>
-                                    <ChevronDown class="h-4 w-4 text-gray-500" />
+                                    <span class="text-gray-700">{{ selectedRemarkSort }}</span>
+                                    <ChevronDown class="h-4 w-4 text-green-500" />
                                 </button>
 
                                 <!-- Dropdown Menu -->
                                 <div
                                     v-if="isRemarksDropdownOpen"
-                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-green-200 bg-white shadow-lg"
                                 >
                                     <div class="py-1">
                                         <button
@@ -541,8 +542,8 @@ onMounted(() => {
                                                 selectedRemarkSort = 'all';
                                                 isRemarksDropdownOpen = false;
                                             "
-                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedRemarkSort === 'all' ? 'bg-gray-100 font-medium' : ''"
+                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition"
+                                            :class="selectedRemarkSort === 'all' ? 'bg-green-100 font-medium text-green-800' : 'text-gray-700'"
                                         >
                                             All Remarks
                                         </button>
@@ -553,8 +554,8 @@ onMounted(() => {
                                                 selectedRemarkSort = remark;
                                                 isRemarksDropdownOpen = false;
                                             "
-                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-                                            :class="selectedRemarkSort === remark ? 'bg-gray-100 font-medium' : ''"
+                                            class="block w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition"
+                                            :class="selectedRemarkSort === remark ? 'bg-green-100 font-medium text-green-800' : 'text-gray-700'"
                                         >
                                             {{ remark }}
                                         </button>
@@ -564,45 +565,49 @@ onMounted(() => {
                         </div>
 
                         <!-- Search Input -->
-                        <div class="w-full md:flex-1">
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Search</label>
+                        <div class="w-full lg:flex-1">
+                            <label class="mb-2 block text-sm font-medium text-green-700">Search Inventory</label>
                             <div class="relative">
-                                <Search class="absolute top-2.5 left-3 h-4 w-4 text-gray-400" />
+                                <Search class="absolute top-3.5 left-4 h-5 w-5 text-green-400" />
                                 <input
                                     v-model="searchTerm"
                                     type="text"
                                     placeholder="Search by brand, generic name, batch, remarks..."
-                                    class="block w-full rounded-md border border-gray-300 py-2 pr-3 pl-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    class="block w-full rounded-lg border border-green-200 py-3 pr-12 pl-12 text-sm shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 transition"
                                 />
-                                <button v-if="searchTerm" @click="searchTerm = ''" class="absolute top-2.5 right-3 text-gray-400 hover:text-gray-600">
+                                <button 
+                                    v-if="searchTerm" 
+                                    @click="searchTerm = ''" 
+                                    class="absolute top-3.5 right-4 text-green-400 hover:text-green-600 transition"
+                                >
                                     <span class="sr-only">Clear search</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                        <path
-                                            fill-rule="evenodd"
-                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                            clip-rule="evenodd"
-                                        />
-                                    </svg>
+                                    <XCircle class="h-5 w-5" />
                                 </button>
                             </div>
                         </div>
 
                         <!-- Generate PDF Button -->
-                        <div class="w-full self-end md:w-auto">
-                            <button @click="showModalRemarksPdf = true" class="rounded bg-indigo-600 px-4 py-2 text-white shadow hover:bg-indigo-700">
-                                Generate Remarks PDF
+                        <div class="w-full lg:w-auto">
+                            <button 
+                                @click="showModalRemarksPdf = true" 
+                                class="w-full lg:w-auto flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-white shadow-md hover:bg-green-700 hover:shadow-lg transition transform hover:scale-105"
+                            >
+                                <FileText class="h-5 w-5" />
+                                Generate PDF Report
                             </button>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Inventory Table -->
-                    <div class="overflow-hidden rounded-lg border bg-white shadow">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-100">
+                <!-- Inventory Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-green-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-green-100">
+                            <thead class="bg-green-50">
                                 <tr>
                                     <th
                                         @click="toggleSort('date_distribute')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Date Distribute
@@ -611,7 +616,7 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('brand_name')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Brand Name
@@ -620,7 +625,7 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('generic_name')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Generic Name
@@ -629,7 +634,7 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('lot_number')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Lot/Batch
@@ -638,7 +643,7 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('quantity')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Quantity
@@ -647,7 +652,7 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('stocks')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Stocks on Hand
@@ -656,7 +661,7 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('expiration_date')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Expires
@@ -665,42 +670,47 @@ onMounted(() => {
                                     </th>
                                     <th
                                         @click="toggleSort('remarks')"
-                                        class="group cursor-pointer px-6 py-3 text-left text-xs font-semibold text-gray-600"
+                                        class="group cursor-pointer px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider hover:bg-green-100 transition"
                                     >
                                         <div class="flex items-center">
                                             Remarks
                                             <ArrowUpDown class="ml-1 h-4 w-4 transition-all" :class="getSortIcon('remarks')" />
                                         </div>
                                     </th>
-                                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600">Actions</th>
+                                    <th class="px-6 py-4 text-center text-xs font-semibold text-green-800 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                <tr v-for="item in filteredInventory" :key="item.id" class="transition hover:bg-gray-50">
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ formatDate(item.date_distribute) }}</td>
-                                    <td class="px-6 py-4 font-medium text-gray-900">{{ item.inventory.brand_name }}</td>
-                                    <td class="px-6 py-4 font-medium text-gray-900">{{ item.inventory.generic_name }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ item.inventory.lot_number }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ item.quantity }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ item.stocks }}</td>
-                                    <td class="flex items-center gap-2 px-6 py-4 text-sm text-gray-700">
-                                        {{ formatDate(item.inventory.expiration_date) }}
-                                        <span
-                                            v-if="expirationStatus(item.inventory.expiration_date)"
-                                            :class="badgeClass(expirationStatus(item.inventory.expiration_date))"
-                                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold"
-                                        >
-                                            {{ expirationStatus(item.inventory.expiration_date) }}
+                            <tbody class="bg-white divide-y divide-green-50">
+                                <tr v-for="item in filteredInventory" :key="item.id" class="transition hover:bg-green-25 duration-200">
+                                    <td class="px-6 py-4 text-sm text-gray-600">{{ formatDate(item.date_distribute) }}</td>
+                                    <td class="px-6 py-4 font-semibold text-gray-900">{{ item.inventory.brand_name }}</td>
+                                    <td class="px-6 py-4 font-medium text-gray-700">{{ item.inventory.generic_name }}</td>
+                                    <td class="px-6 py-4 text-sm font-mono text-gray-600 bg-gray-50 rounded">{{ item.inventory.lot_number }}</td>
+                                    <td class="px-6 py-4 text-sm font-semibold text-gray-700">{{ item.quantity }}</td>
+                                    <td class="px-6 py-4 text-sm font-semibold text-green-700">{{ item.stocks }}</td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-gray-600">{{ formatDate(item.inventory.expiration_date) }}</span>
+                                            <span
+                                                v-if="expirationStatus(item.inventory.expiration_date)"
+                                                :class="badgeClass(expirationStatus(item.inventory.expiration_date))"
+                                                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                                            >
+                                                {{ expirationStatus(item.inventory.expiration_date) }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                            {{ item.remarks || '-' }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ item.remarks || '-' }}</td>
                                     <td class="px-6 py-4 text-center">
                                         <div class="flex justify-center gap-2">
                                             <button
                                                 @click="deleteItem(item)"
-                                                :class="darkMode ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-800'"
-                                                class="text-sm"
-                                                title="Delete"
+                                                class="text-red-600 hover:text-red-800 hover:bg-red-100 p-2 rounded-lg transition"
+                                                title="Delete Distribution Record"
                                             >
                                                 <Trash2 class="h-4 w-4" />
                                             </button>
@@ -708,9 +718,15 @@ onMounted(() => {
                                     </td>
                                 </tr>
                                 <tr v-if="filteredInventory.length === 0">
-                                    <td colspan="8" class="px-6 py-6 text-center text-sm text-gray-500">
-                                        No inventory items found with the selected filters.
-                                        <button @click="resetFilters" class="ml-1 text-blue-500 hover:underline">Reset filters</button>
+                                    <td colspan="9" class="px-6 py-12 text-center">
+                                        <div class="flex flex-col items-center justify-center text-gray-500">
+                                            <FileText class="h-12 w-12 text-green-300 mb-4" />
+                                            <p class="text-lg font-medium">No distribution records found</p>
+                                            <p class="text-sm mb-4">Try adjusting your search criteria or filters.</p>
+                                            <button @click="resetFilters" class="text-green-600 hover:text-green-800 hover:underline font-medium">
+                                                Reset all filters
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -721,118 +737,137 @@ onMounted(() => {
         </div>
 
         <!-- Modal for Generating PDF by Remarks -->
-        <div v-if="showModalRemarksPdf" class="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">
-            <div class="w-full max-w-md rounded-lg bg-white p-6 text-gray-900 shadow-lg dark:bg-gray-800 dark:text-gray-100">
-                <h3 class="mb-4 text-lg font-semibold">Generate Distribution Report by Remarks</h3>
+        <div v-if="showModalRemarksPdf" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-2xl mx-4 border border-green-100">
+                <h3 class="mb-6 text-xl font-bold text-green-800">Generate Distribution Report</h3>
 
                 <!-- Remark Input -->
-                <label for="remarksInput" class="mb-1 block text-sm font-medium">Remark</label>
-                <input
-                    id="remarksInput"
-                    v-model="modalRemarksValue"
-                    type="text"
-                    placeholder="e.g., Dispensed or all"
-                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                />
+                <div class="mb-4">
+                    <label for="remarksInput" class="mb-2 block text-sm font-semibold text-green-700">Remark</label>
+                    <input
+                        id="remarksInput"
+                        v-model="modalRemarksValue"
+                        type="text"
+                        placeholder="e.g., Dispensed or all"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                    />
+                </div>
 
                 <!-- Lot Number Input -->
-                <label for="lotNumberInput" class="mb-1 block text-sm font-medium">Lot Number (Optional)</label>
-                <input
-                    id="lotNumberInput"
-                    v-model="modalLotNumberValue"
-                    type="text"
-                    placeholder="e.g., LOT123"
-                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                />
+                <div class="mb-4">
+                    <label for="lotNumberInput" class="mb-2 block text-sm font-semibold text-green-700">Lot Number (Optional)</label>
+                    <input
+                        id="lotNumberInput"
+                        v-model="modalLotNumberValue"
+                        type="text"
+                        placeholder="e.g., LOT123"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                    />
+                </div>
 
                 <!-- Month Select -->
-                <label for="monthSelect" class="mb-1 block text-sm font-medium">Select Month (Optional)</label>
-                <select
-                    id="monthSelect"
-                    v-model="modalMonthValue"
-                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                    <option value="">-- Select Month --</option>
-                    <option value="1">January</option>
-                    <option value="2">February</option>
-                    <option value="3">March</option>
-                    <option value="4">April</option>
-                    <option value="5">May</option>
-                    <option value="6">June</option>
-                    <option value="7">July</option>
-                    <option value="8">August</option>
-                    <option value="9">September</option>
-                    <option value="10">October</option>
-                    <option value="11">November</option>
-                    <option value="12">December</option>
-                </select>
+                <div class="mb-4">
+                    <label for="monthSelect" class="mb-2 block text-sm font-semibold text-green-700">Select Month (Optional)</label>
+                    <select
+                        id="monthSelect"
+                        v-model="modalMonthValue"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                    >
+                        <option value="">-- Select Month --</option>
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
 
                 <!-- Year Input -->
-                <label for="yearInput" class="mb-1 block text-sm font-medium">Enter Year (Optional)</label>
-                <input
-                    id="yearInput"
-                    v-model="modalYearValue"
-                    type="number"
-                    placeholder="e.g., 2025"
-                    class="mb-4 w-full rounded border p-2 focus:ring focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                />
+                <div class="mb-6">
+                    <label for="yearInput" class="mb-2 block text-sm font-semibold text-green-700">Enter Year (Optional)</label>
+                    <input
+                        id="yearInput"
+                        v-model="modalYearValue"
+                        type="number"
+                        placeholder="e.g., 2025"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                    />
+                </div>
 
-                <div class="flex justify-end gap-2">
+                <div class="flex justify-end gap-3">
                     <button
                         @click="showModalRemarksPdf = false"
-                        class="rounded border px-4 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                        class="rounded-lg border border-gray-300 px-6 py-3 text-gray-600 hover:bg-gray-50 transition"
                     >
                         Cancel
                     </button>
-                    <button @click="generateRemarksPdf" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Generate</button>
+                    <button 
+                        @click="generateRemarksPdf" 
+                        class="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 shadow-md hover:shadow-lg transition transform hover:scale-105"
+                    >
+                        Generate PDF
+                    </button>
                 </div>
             </div>
         </div>
 
         <!-- Delete Confirmation Modal -->
-        <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div class="w-full max-w-md rounded-lg bg-white p-6 text-gray-900 shadow-lg dark:bg-gray-800 dark:text-gray-100">
-                <h3 class="mb-2 text-lg font-semibold">Confirm Deletion</h3>
+        <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-2xl mx-4 border border-red-100">
+                <h3 class="mb-2 text-xl font-bold text-red-800">Confirm Deletion</h3>
 
-                <p class="mb-6 text-gray-600 dark:text-gray-300">
+                <p class="mb-6 text-gray-600">
                     Are you sure you want to delete this distribution record?
-                    <span class="font-medium">This action cannot be undone.</span>
+                    <span class="font-medium text-red-600">This action cannot be undone.</span>
                 </p>
 
-                <div v-if="itemToDelete" class="mb-6 rounded border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-700">
+                <div v-if="itemToDelete" class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div class="grid grid-cols-2 gap-2 text-sm">
-                        <div class="font-medium">Brand Name:</div>
-                        <div>{{ itemToDelete.inventory?.brand_name }}</div>
+                        <div class="font-medium text-gray-700">Brand Name:</div>
+                        <div class="text-gray-600">{{ itemToDelete.inventory?.brand_name }}</div>
 
-                        <div class="font-medium">Generic Name:</div>
-                        <div>{{ itemToDelete.inventory?.generic_name }}</div>
+                        <div class="font-medium text-gray-700">Generic Name:</div>
+                        <div class="text-gray-600">{{ itemToDelete.inventory?.generic_name }}</div>
 
-                        <div class="font-medium">Lot/Batch:</div>
-                        <div>{{ itemToDelete.inventory?.lot_number }}</div>
+                        <div class="font-medium text-gray-700">Lot/Batch:</div>
+                        <div class="text-gray-600">{{ itemToDelete.inventory?.lot_number }}</div>
 
-                        <div class="font-medium">Quantity:</div>
-                        <div>{{ itemToDelete.quantity }}</div>
+                        <div class="font-medium text-gray-700">Quantity:</div>
+                        <div class="text-gray-600">{{ itemToDelete.quantity }}</div>
                     </div>
                 </div>
 
                 <div class="flex justify-end gap-3">
                     <button
                         @click="showDeleteModal = false"
-                        class="rounded border px-4 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                        class="rounded-lg border border-gray-300 px-6 py-3 text-gray-600 hover:bg-gray-50 transition"
                         :disabled="isDeleting"
                     >
                         Cancel
                     </button>
                     <button
                         @click="confirmDelete"
-                        class="flex items-center gap-2 rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                        class="flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 text-white hover:bg-red-700 transition"
                         :disabled="isDeleting"
                     >
                         <span v-if="isDeleting">Deleting...</span>
-                        <span v-else>Delete</span>
+                        <span v-else>Delete Record</span>
                     </button>
                 </div>
             </div>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.hover\:bg-green-25:hover {
+    background-color: #f0fdf4;
+}
+</style>
