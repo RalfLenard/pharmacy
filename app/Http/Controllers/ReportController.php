@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ReportController extends Controller
 {
@@ -276,61 +277,12 @@ class ReportController extends Controller
     }
 
 
-
     public function generateFilteredPDF(Request $request)
     {
         try {
             $query = RecipientDistribution::with(['recipient', 'distribution.inventory']);
 
-            // Apply filters (medicine, lot_number, etc.)
-            if ($request->filled('medicine')) {
-                $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                    $q->where('generic_name', 'like', '%' . $request->medicine . '%')
-                        ->orWhere('brand_name', 'like', '%' . $request->medicine . '%');
-                });
-            }
-
-            if ($request->filled('brand_name')) {
-                $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                    $q->where('brand_name', 'like', '%' . $request->brand_name . '%');
-                });
-            }
-
-            if ($request->filled('generic_name')) {
-                $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                    $q->where('generic_name', 'like', '%' . $request->generic_name . '%');
-                });
-            }
-
-            if ($request->filled('lot_number')) {
-                $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                    $q->where('lot_number', 'like', '%' . $request->lot_number . '%');
-                });
-            }
-
-            if ($request->filled('barangay')) {
-                $query->whereHas('recipient', function ($q) use ($request) {
-                    $q->where('barangay', $request->barangay);
-                });
-            }
-
-            if ($request->filled('gender')) {
-                $query->whereHas('recipient', function ($q) use ($request) {
-                    $q->where('gender', $request->gender);
-                });
-            }
-
-            // Apply month and year filters using the model's scope
-            if ($request->filled('month') && $request->filled('year')) {
-                $month = (int) $request->month;
-                $year = (int) $request->year;
-
-                if ($month >= 1 && $month <= 12 && $year > 1900) {
-                    $query->whereYear('date_given', $year)
-                        ->whereMonth('date_given', $month);
-                }
-            }
-
+            $this->applyCommonFilters($query, $request);
 
             $records = $query->get();
 
@@ -346,74 +298,85 @@ class ReportController extends Controller
                 ->showBackground()
                 ->pdf();
 
-            return new StreamedResponse(function () use ($pdf) {
+            return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($pdf) {
                 echo $pdf;
             }, 200, [
                 'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="filtered_distribution_' . now()->format('Ymd_His') . '.pdf"'
+                'Content-Disposition' => 'inline; filename="filtered_distribution_' . now()->format('Ymd_His') . '.pdf"',
             ]);
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to generate PDF. Please try again later.');
         }
     }
 
-
-    public function checkFilteredPDF(Request $request)
+    private function applyCommonFilters($query, Request $request)
     {
-        $query = RecipientDistribution::with(['recipient', 'distribution.inventory']);
-
-        // Apply filters (medicine, lot_number, etc.)
-        if ($request->filled('medicine')) {
-            $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                $q->where('generic_name', 'like', '%' . $request->medicine . '%')
-                    ->orWhere('brand_name', 'like', '%' . $request->medicine . '%');
-            });
-        }
-
+        // Inventory Filters
         if ($request->filled('brand_name')) {
-            $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                $q->where('brand_name', 'like', '%' . $request->brand_name . '%');
-            });
+            $query->whereHas('distribution.inventory', fn($q) =>
+            $q->where('brand_name', 'like', '%' . $request->brand_name . '%'));
         }
 
         if ($request->filled('generic_name')) {
-            $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                $q->where('generic_name', 'like', '%' . $request->generic_name . '%');
-            });
+            $query->whereHas('distribution.inventory', fn($q) =>
+            $q->where('generic_name', 'like', '%' . $request->generic_name . '%'));
         }
 
         if ($request->filled('lot_number')) {
-            $query->whereHas('distribution.inventory', function ($q) use ($request) {
-                $q->where('lot_number', 'like', '%' . $request->lot_number . '%');
-            });
+            $query->whereHas('distribution.inventory', fn($q) =>
+            $q->where('lot_number', 'like', '%' . $request->lot_number . '%'));
         }
 
+        // Recipient Filters
         if ($request->filled('barangay')) {
-            $query->whereHas('recipient', function ($q) use ($request) {
-                $q->where('barangay', $request->barangay);
-            });
+            $query->whereHas('recipient', fn($q) =>
+            $q->where('barangay', $request->barangay));
         }
 
         if ($request->filled('gender')) {
-            $query->whereHas('recipient', function ($q) use ($request) {
-                $q->where('gender', $request->gender);
-            });
+            $query->whereHas('recipient', fn($q) =>
+            $q->where('gender', $request->gender));
         }
 
-        // Apply month and year filters using the model's scope
-        if ($request->filled('month') && $request->filled('year')) {
-            $month = (int) $request->month;
-            $year = (int) $request->year;
+        // Date Filters
+        $month = $request->filled('month') ? (int) $request->month : null;
+        $year = $request->filled('year') ? (int) $request->year : null;
 
-            if ($month >= 1 && $month <= 12 && $year > 1900) {
-                $query->whereYear('date_given', $year)
-                    ->whereMonth('date_given', $month);
-            }
+        if ($month && $year && $month >= 1 && $month <= 12 && $year > 1900) {
+            $query->whereMonth('date_given', $month)
+                ->whereYear('date_given', $year);
         }
+    }
 
+
+    public function checkFilteredPDF(Request $request)
+    {
+        $query = RecipientDistribution::query();
+
+        $this->applyCommonFilters($query, $request);
 
         $exists = $query->exists();
 
         return response()->json(['exists' => $exists]);
     }
+
+
+    public function getAvailableMonths(Request $request)
+    {
+        $year = $request->input('year');
+    
+        $query = RecipientDistribution::query();
+    
+        if ($year) {
+            $query->whereYear('date_given', $year);
+        }
+    
+        $months = $query->selectRaw('DISTINCT MONTH(date_given) as month')
+                        ->orderBy('month')
+                        ->pluck('month');
+    
+        return response()->json(['months' => $months]);
+    }
+    
+    
 }

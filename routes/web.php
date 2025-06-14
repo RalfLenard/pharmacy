@@ -56,7 +56,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/report/recipient-distributions/check', [ReportController::class, 'checkFilteredPDF'])
     ->name('report.recipient-distributions.check');
 
-
+    Route::get('/available-months', [ReportController::class, 'getAvailableMonths']);
 
 
 });
