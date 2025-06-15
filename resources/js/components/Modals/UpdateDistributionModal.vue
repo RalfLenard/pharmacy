@@ -20,6 +20,7 @@ interface RecipientDistribution {
             lot_number: string;
             utils: string;
             expiration_date?: string; // Added expiration date field
+            stocks: number;
         }
     };
     recipient?: {
@@ -89,7 +90,7 @@ const lotNumberOptions = computed(() => {
             id: dist.id,
             lot_number: dist.inventory.lot_number,
             expiration_date: dist.inventory.expiration_date || 'Not specified',
-            stocks: dist.stocks
+            stocks: dist.stocks,
         }));
 });
 
