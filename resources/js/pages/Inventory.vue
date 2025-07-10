@@ -545,8 +545,12 @@ const getRoute = (name: string, params?: any) => {
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center gap-2">
                                             <span class="text-sm font-semibold text-gray-900">{{ item.stocks }}</span>
-                                            <span v-if="item.stocks <= 10" 
+                                            <span v-if="item.stocks == 0" 
                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+                                                Out of Stock
+                                            </span>
+                                            <span v-else-if="item.stocks <= 10" 
+                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-200">
                                                 Low Stock
                                             </span>
                                             <span v-else-if="item.stocks <= 50" 

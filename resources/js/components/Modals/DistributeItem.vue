@@ -55,6 +55,34 @@
                             <option value="RHU-II">RHU-II</option>
                             <option value="RHU-III">RHU-III</option>
                             <option value="RHU-IV">RHU-IV</option>
+                            <option value="Medical Mission 1">Medical Mission 1</option>
+                            <option value="Medical Mission 2">Medical Mission 2</option>
+                            <option value="Medical Mission 3">Medical Mission 3</option>
+                            <option value="Medical Mission 4">Medical Mission 4</option>
+                            <option value="Medical Mission 5">Medical Mission 5</option>
+                            <option value="Medical Mission 6">Medical Mission 6</option>
+                            <option value="Medical Mission 7">Medical Mission 7</option>
+                            <option value="Medical Mission 8">Medical Mission 8</option>
+                            <option value="Medical Mission 9">Medical Mission 9</option>
+                            <option value="Medical Mission 10">Medical Mission 10</option>
+                            <option value="Medical Mission 11">Medical Mission 11</option>
+                            <option value="Medical Mission 12">Medical Mission 12</option>
+                            <option value="Medical Mission 13">Medical Mission 13</option>
+                            <option value="Medical Mission 14">Medical Mission 14</option>
+                            <option value="Medical Mission 15">Medical Mission 15</option>
+                            <option value="Medical Mission 16">Medical Mission 16</option>
+                            <option value="Medical Mission 17">Medical Mission 17</option>
+                            <option value="Medical Mission 18">Medical Mission 18</option>
+                            <option value="Medical Mission 19">Medical Mission 19</option>
+                            <option value="Medical Mission 20">Medical Mission 20</option>
+                            <option value="Medical Mission 21">Medical Mission 21</option>
+                            <option value="Medical Mission 22">Medical Mission 22</option>
+                            <option value="Medical Mission 23">Medical Mission 23</option>
+                            <option value="Medical Mission 24">Medical Mission 24</option>
+                            <option value="Calamity">Calamity</option>
+                            <option value="Dental">Dental</option>
+                            <option value="Birthing">Birthing</option>
+                            <option value="MHO">MHO</option>MHO
                             <option value="Others">Others</option>
                         </select>
 

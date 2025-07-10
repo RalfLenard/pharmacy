@@ -42,34 +42,36 @@
 </head>
 <body>
     <h1>{{ $title ?? 'Inventory Report' }}</h1>
+    <h5>As of {{ now()->format('F j, Y') }}</h5>
 
     @if ($inventories->isNotEmpty())
         <table>
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Lot Number</th>
-                    <th>Brand Name</th>
                     <th>Generic Name</th>
+                    <th>Brand Name</th>
+                    <th>Units</th>
+                    <th>Lot Number</th>
+                    <th>Expiration Date</th>
                     <th>Quantity</th>
                     <th>Stocks</th>
-                    <th>Units</th>
                     <th>Date In</th>
-                    <th>Expiration Date</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach ($inventories as $index => $item)
+                @php $i = 1; @endphp
+                @foreach ($inventories->sortBy(fn($item) => strtolower($item->generic_name ?? '')) as $item)
                     <tr>
-                        <td>{{ $index + 1 }}</td>
-                        <td>{{ $item->lot_number }}</td>
-                        <td>{{ $item->brand_name }}</td>
+                        <td>{{ $i++ }}</td>
                         <td>{{ $item->generic_name }}</td>
+                        <td>{{ $item->brand_name }}</td>
+                        <td>{{ $item->utils }}</td>
+                        <td>{{ $item->lot_number }}</td>
+                        <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
                         <td>{{ $item->quantity }}</td>
                         <td>{{ $item->stocks }}</td>
-                        <td>{{ $item->utils }}</td>
                         <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
-                        <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
                     </tr>
                 @endforeach
             </tbody>

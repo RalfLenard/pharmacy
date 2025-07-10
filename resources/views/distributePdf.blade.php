@@ -60,26 +60,32 @@
         <p><strong>Lot Number:</strong> {{ $lot_number ?? 'All' }}</p>
         <p><strong>Month:</strong> {{ $month ? \Carbon\Carbon::create()->month($month)->format('F') : 'All' }}</p>
         <p><strong>Year:</strong> {{ $year ?? 'All' }}</p>
+        <p><strong>As of:</strong> {{ now()->format('F j, Y') }}</p>
     </div>
 
     <table>
         <thead>
             <tr>
                 <th>#</th>
-                <th>Brand Name</th>
                 <th>Generic Name</th>
+                <th>Brand Name</th>
+                <th>Units</th>
                 <th>Lot Number</th>
+                <th>Expiration Date</th>
                 <th>Quantity</th>
                 <th>Date Distributed</th>
             </tr>
         </thead>
         <tbody>
-            @foreach ($distributions as $index => $distribution)
+             @php $i = 1; @endphp
+            @foreach ($distributions->sortBy(fn($d) => strtolower($d->inventory->generic_name ?? '')) as $index => $distribution)
                 <tr>
-                    <td>{{ $index + 1 }}</td>
-                    <td>{{ $distribution->inventory->brand_name ?? 'N/A' }}</td>
+                    <td>{{ $i++ }}</td>
                     <td>{{ $distribution->inventory->generic_name ?? 'N/A' }}</td>
+                    <td>{{ $distribution->inventory->brand_name ?? 'N/A' }}</td>
+                    <td>{{ $distribution->inventory->utils ?? 'N/A' }}</td>
                     <td>{{ $distribution->inventory->lot_number ?? 'N/A' }}</td>
+                    <td>{{ \Carbon\Carbon::parse($distribution->inventory->expiration_date)->format('M d, Y') }}</td>
                     <td>{{ $distribution->quantity }}</td>
                     <td>{{ \Carbon\Carbon::parse($distribution->date_distribute)->format('Y-m-d') }}</td>
                 </tr>
@@ -87,8 +93,6 @@
         </tbody>
     </table>
 
-    <div class="footer">
-        Report generated on {{ now()->format('F j, Y g:i A') }}
-    </div>
+   
 </body>
 </html>
