@@ -58,6 +58,8 @@ const modalRemarksValue = ref('');
 const modalLotNumberValue = ref('');
 const modalMonthValue = ref('');
 const modalYearValue = ref('');
+const modalStockTypeValue = ref('');
+
 
 // Flash message state
 const flashMessage = ref('');
@@ -84,7 +86,7 @@ const debouncedSearch = (searchValue: string, remarksValue: string) => {
 // Perform search with backend
 const performSearch = (search: string, remarks: string) => {
     isLoading.value = true;
-    
+
     router.get('/pharmacy', {
         search: search || undefined,
         remarks: remarks || 'Pharmacy',
@@ -105,7 +107,7 @@ watch([searchTerm, selectedRemarks], ([newSearch, newRemarks]) => {
 // Pagination handler
 const goToPage = (page: number) => {
     isLoading.value = true;
-    
+
     router.get('/pharmacy', {
         page,
         search: searchTerm.value || undefined,
@@ -146,7 +148,7 @@ const confirmDelete = async () => {
 
         if (response.data.success) {
             displayFlash(response.data.message || 'Distribution record deleted successfully.', 'success');
-            
+
             // Refresh the current page data
             router.reload({
                 only: ['distributed'],
@@ -167,7 +169,7 @@ const confirmDelete = async () => {
 // PDF generation
 const generateRemarksPdf = async () => {
     const remarks = modalRemarksValue.value.trim();
-    const lot = modalLotNumberValue.value.trim();
+    const stockType = modalStockTypeValue.value.trim(); // Updated from lot to stockType
     const month = modalMonthValue.value;
     const year = modalYearValue.value;
 
@@ -180,7 +182,7 @@ const generateRemarksPdf = async () => {
         const response = await axios.get('/reports/distribution/check', {
             params: {
                 remarks: remarks,
-                lot_number: lot || undefined,
+                stock_type: stockType || undefined, // changed key from lot_number to stock_type
                 month: month || undefined,
                 year: year || undefined,
             },
@@ -188,7 +190,7 @@ const generateRemarksPdf = async () => {
 
         if (response.data.exists) {
             const query = new URLSearchParams();
-            if (lot) query.append('lot_number', lot);
+            if (stockType) query.append('stock_type', stockType); // changed from lot
             if (month) query.append('month', month);
             if (year) query.append('year', year);
 
@@ -207,6 +209,7 @@ const generateRemarksPdf = async () => {
 
     showModalRemarksPdf.value = false;
 };
+
 
 // Utility functions
 const formatDate = (dateString: string | null | undefined): string => {
@@ -292,29 +295,23 @@ onMounted(() => {
 </script>
 
 <template>
+
     <Head title="Pharmacy Distribution" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full min-h-screen w-full flex-1 flex-col gap-4 p-6 bg-green-50">
             <div class="w-full max-w-none">
                 <!-- Flash Message Notification -->
-                <transition
-                    enter-active-class="transform ease-out duration-300 transition"
+                <transition enter-active-class="transform ease-out duration-300 transition"
                     enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
                     enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
-                    leave-active-class="transition ease-in duration-200"
-                    leave-from-class="opacity-100"
-                    leave-to-class="opacity-0"
-                >
-                    <div
-                        v-if="showFlash"
-                        class="fixed top-4 right-4 z-50 max-w-md rounded-lg p-4 shadow-lg"
-                        :class="[
-                            flashType === 'success'
-                                ? 'border border-green-200 bg-green-100 text-green-800'
-                                : 'border border-red-200 bg-red-100 text-red-800'
-                        ]"
-                    >
+                    leave-active-class="transition ease-in duration-200" leave-from-class="opacity-100"
+                    leave-to-class="opacity-0">
+                    <div v-if="showFlash" class="fixed top-4 right-4 z-50 max-w-md rounded-lg p-4 shadow-lg" :class="[
+                        flashType === 'success'
+                            ? 'border border-green-200 bg-green-100 text-green-800'
+                            : 'border border-red-200 bg-red-100 text-red-800'
+                    ]">
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
                                 <CheckCircle v-if="flashType === 'success'" class="h-5 w-5 text-green-500" />
@@ -324,15 +321,13 @@ onMounted(() => {
                                 <p class="text-sm font-medium">{{ flashMessage }}</p>
                             </div>
                             <div class="ml-auto pl-3">
-                                <button
-                                    @click="showFlash = false"
+                                <button @click="showFlash = false"
                                     class="inline-flex rounded-md p-1.5 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                                     :class="[
                                         flashType === 'success'
                                             ? 'text-green-500 hover:bg-green-200 focus:ring-green-400'
                                             : 'text-red-500 hover:bg-red-200 focus:ring-red-400'
-                                    ]"
-                                >
+                                    ]">
                                     <span class="sr-only">Dismiss</span>
                                     <XCircle class="h-4 w-4" />
                                 </button>
@@ -359,36 +354,28 @@ onMounted(() => {
                         <Filter class="h-5 w-5 text-green-600" />
                         <h3 class="text-lg font-semibold text-green-800">Filter & Search Options</h3>
                     </div>
-                    
+
                     <div class="flex flex-col gap-6 lg:flex-row lg:items-end">
                         <!-- Remarks Dropdown -->
                         <div class="w-full lg:w-1/3">
                             <label class="mb-2 block text-sm font-medium text-green-700">Pharmacy Remarks</label>
                             <div class="relative" id="remarks-dropdown">
-                                <button
-                                    @click="isRemarksDropdownOpen = !isRemarksDropdownOpen"
+                                <button @click="isRemarksDropdownOpen = !isRemarksDropdownOpen"
                                     class="flex w-full items-center justify-between rounded-lg border border-green-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 transition"
-                                    :disabled="isLoading"
-                                >
+                                    :disabled="isLoading">
                                     <span class="text-gray-700">{{ selectedRemarks }}</span>
                                     <ChevronDown class="h-4 w-4 text-green-500" />
                                 </button>
 
-                                <div
-                                    v-if="isRemarksDropdownOpen"
-                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-green-200 bg-white shadow-lg"
-                                >
+                                <div v-if="isRemarksDropdownOpen"
+                                    class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-green-200 bg-white shadow-lg">
                                     <div class="py-1">
-                                        <button
-                                            v-for="remark in remarksOptions"
-                                            :key="remark"
-                                            @click="
-                                                selectedRemarks = remark;
-                                                isRemarksDropdownOpen = false;
-                                            "
+                                        <button v-for="remark in remarksOptions" :key="remark" @click="
+                                            selectedRemarks = remark;
+                                        isRemarksDropdownOpen = false;
+                                        "
                                             class="block w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition"
-                                            :class="selectedRemarks === remark ? 'bg-green-100 font-medium text-green-800' : 'text-gray-700'"
-                                        >
+                                            :class="selectedRemarks === remark ? 'bg-green-100 font-medium text-green-800' : 'text-gray-700'">
                                             {{ remark }}
                                         </button>
                                     </div>
@@ -401,18 +388,12 @@ onMounted(() => {
                             <label class="mb-2 block text-sm font-medium text-green-700">Search Inventory</label>
                             <div class="relative">
                                 <Search class="absolute top-3.5 left-4 h-5 w-5 text-green-400" />
-                                <input
-                                    v-model="searchTerm"
-                                    type="text"
+                                <input v-model="searchTerm" type="text"
                                     placeholder="Search by brand, generic name, lot number..."
                                     class="block w-full rounded-lg border border-green-200 py-3 pr-12 pl-12 text-sm shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 transition"
-                                    :disabled="isLoading"
-                                />
-                                <button 
-                                    v-if="searchTerm" 
-                                    @click="searchTerm = ''" 
-                                    class="absolute top-3.5 right-4 text-green-400 hover:text-green-600 transition"
-                                >
+                                    :disabled="isLoading" />
+                                <button v-if="searchTerm" @click="searchTerm = ''"
+                                    class="absolute top-3.5 right-4 text-green-400 hover:text-green-600 transition">
                                     <span class="sr-only">Clear search</span>
                                     <XCircle class="h-5 w-5" />
                                 </button>
@@ -421,19 +402,15 @@ onMounted(() => {
 
                         <!-- Action Buttons -->
                         <div class="flex gap-3">
-                            <button 
-                                @click="resetFilters" 
+                            <button @click="resetFilters"
                                 class="flex items-center gap-2 rounded-lg border border-green-200 px-4 py-3 text-green-700 hover:bg-green-50 transition"
-                                :disabled="isLoading"
-                            >
+                                :disabled="isLoading">
                                 <RefreshCw class="h-4 w-4" />
                                 Reset
                             </button>
-                            <button 
-                                @click="showModalRemarksPdf = true" 
+                            <button @click="showModalRemarksPdf = true"
                                 class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-white shadow-md hover:bg-green-700 hover:shadow-lg transition transform hover:scale-105"
-                                :disabled="isLoading"
-                            >
+                                :disabled="isLoading">
                                 <FileText class="h-5 w-5" />
                                 Generate PDF
                             </button>
@@ -447,66 +424,78 @@ onMounted(() => {
                         <table class="min-w-full divide-y divide-green-100">
                             <thead class="bg-green-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Date Distributed
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Brand Name
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Generic Name
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Lot/Batch
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Quantity
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Stocks on Hand
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Expires
                                     </th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Remarks
                                     </th>
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <th
+                                        class="px-6 py-4 text-center text-xs font-semibold text-green-800 uppercase tracking-wider">
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-green-50">
-                                <tr v-for="item in distributed.data" :key="item.id" class="transition hover:bg-green-25 duration-200">
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ formatDate(item.date_distribute) }}</td>
-                                    <td class="px-6 py-4 font-semibold text-gray-900">{{ item.inventory.brand_name }}</td>
-                                    <td class="px-6 py-4 font-medium text-gray-700">{{ item.inventory.generic_name }}</td>
-                                    <td class="px-6 py-4 text-sm font-mono text-gray-600 bg-gray-50 rounded">{{ item.inventory.lot_number }}</td>
+                                <tr v-for="item in distributed.data" :key="item.id"
+                                    class="transition hover:bg-green-25 duration-200">
+                                    <td class="px-6 py-4 text-sm text-gray-600">{{ formatDate(item.date_distribute) }}
+                                    </td>
+                                    <td class="px-6 py-4 font-semibold text-gray-900">{{ item.inventory.brand_name }}
+                                    </td>
+                                    <td class="px-6 py-4 font-medium text-gray-700">{{ item.inventory.generic_name }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm font-mono text-gray-600 bg-gray-50 rounded">{{
+                                        item.inventory.lot_number }}</td>
                                     <td class="px-6 py-4 text-sm font-semibold text-gray-700">{{ item.quantity }}</td>
                                     <td class="px-6 py-4 text-sm font-semibold text-green-700">{{ item.stocks }}</td>
                                     <td class="px-6 py-4 text-sm">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-gray-600">{{ formatDate(item.inventory.expiration_date) }}</span>
-                                            <span
-                                                v-if="expirationStatus(item.inventory.expiration_date)"
+                                            <span class="text-gray-600">{{ formatDate(item.inventory.expiration_date)
+                                                }}</span>
+                                            <span v-if="expirationStatus(item.inventory.expiration_date)"
                                                 :class="badgeClass(expirationStatus(item.inventory.expiration_date)!)"
-                                                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
-                                            >
+                                                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">
                                                 {{ expirationStatus(item.inventory.expiration_date) }}
                                             </span>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-sm">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
                                             {{ item.remarks || '-' }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-center">
-                                        <button
-                                            @click="deleteItem(item)"
+                                        <button @click="deleteItem(item)"
                                             class="text-red-600 hover:text-red-800 hover:bg-red-100 p-2 rounded-lg transition"
-                                            title="Delete Distribution Record"
-                                        >
+                                            title="Delete Distribution Record">
                                             <Trash2 class="h-4 w-4" />
                                         </button>
                                     </td>
@@ -517,7 +506,8 @@ onMounted(() => {
                                             <FileText class="h-12 w-12 text-green-300 mb-4" />
                                             <p class="text-lg font-medium">No distribution records found</p>
                                             <p class="text-sm mb-4">Try adjusting your search criteria or filters.</p>
-                                            <button @click="resetFilters" class="text-green-600 hover:text-green-800 hover:underline font-medium">
+                                            <button @click="resetFilters"
+                                                class="text-green-600 hover:text-green-800 hover:underline font-medium">
                                                 Reset all filters
                                             </button>
                                         </div>
@@ -531,35 +521,28 @@ onMounted(() => {
                     <div v-if="distributed.last_page > 1" class="bg-gray-50 px-6 py-4 border-t border-green-100">
                         <div class="flex items-center justify-between">
                             <div class="text-sm text-gray-700">
-                                Showing {{ distributed.from }} to {{ distributed.to }} of {{ distributed.total }} results
+                                Showing {{ distributed.from }} to {{ distributed.to }} of {{ distributed.total }}
+                                results
                             </div>
                             <div class="flex items-center gap-2">
-                                <button
-                                    @click="goToPage(distributed.current_page - 1)"
+                                <button @click="goToPage(distributed.current_page - 1)"
                                     :disabled="distributed.current_page === 1 || isLoading"
-                                    class="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
+                                    class="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
                                     Previous
                                 </button>
-                                
+
                                 <template v-for="page in Math.min(distributed.last_page, 5)" :key="page">
-                                    <button
-                                        @click="goToPage(page)"
-                                        :disabled="isLoading"
-                                        class="px-3 py-2 text-sm border rounded-md transition"
-                                        :class="distributed.current_page === page 
-                                            ? 'bg-green-600 text-white border-green-600' 
-                                            : 'border-gray-300 hover:bg-gray-100'"
-                                    >
+                                    <button @click="goToPage(page)" :disabled="isLoading"
+                                        class="px-3 py-2 text-sm border rounded-md transition" :class="distributed.current_page === page
+                                            ? 'bg-green-600 text-white border-green-600'
+                                            : 'border-gray-300 hover:bg-gray-100'">
                                         {{ page }}
                                     </button>
                                 </template>
-                                
-                                <button
-                                    @click="goToPage(distributed.current_page + 1)"
+
+                                <button @click="goToPage(distributed.current_page + 1)"
                                     :disabled="distributed.current_page === distributed.last_page || isLoading"
-                                    class="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
+                                    class="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
                                     Next
                                 </button>
                             </div>
@@ -570,85 +553,72 @@ onMounted(() => {
         </div>
 
         <!-- PDF Generation Modal -->
-        <div v-if="showModalRemarksPdf" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+        <div v-if="showModalRemarksPdf"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
             <div class="w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-2xl mx-4 border border-green-100">
                 <h3 class="mb-6 text-xl font-bold text-green-800">Generate Distribution Report</h3>
 
+                <!-- Remarks -->
                 <div class="mb-4">
-                    <label for="remarksInput" class="mb-2 block text-sm font-semibold text-green-700">Remark</label>
-                    <input
-                        id="remarksInput"
-                        v-model="modalRemarksValue"
-                        type="text"
-                        placeholder="e.g., Pharmacy or all"
-                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
-                    />
+                    <label for="remarksInput" class="mb-2 block text-sm font-semibold text-green-700">Remarks</label>
+                    <input id="remarksInput" v-model="modalRemarksValue" type="text"
+                        placeholder='e.g., "Pharmacy", or type "all"'
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition" />
                 </div>
 
+                <!-- Stock Type (Replaces Lot Number) -->
                 <div class="mb-4">
-                    <label for="lotNumberInput" class="mb-2 block text-sm font-semibold text-green-700">Lot Number (Optional)</label>
-                    <input
-                        id="lotNumberInput"
-                        v-model="modalLotNumberValue"
-                        type="text"
-                        placeholder="e.g., LOT123"
-                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
-                    />
-                </div>
-
-                <div class="mb-4">
-                    <label for="monthSelect" class="mb-2 block text-sm font-semibold text-green-700">Select Month (Optional)</label>
-                    <select
-                        id="monthSelect"
-                        v-model="modalMonthValue"
-                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
-                    >
-                        <option value="">-- Select Month --</option>
-                        <option value="1">January</option>
-                        <option value="2">February</option>
-                        <option value="3">March</option>
-                        <option value="4">April</option>
-                        <option value="5">May</option>
-                        <option value="6">June</option>
-                        <option value="7">July</option>
-                        <option value="8">August</option>
-                        <option value="9">September</option>
-                        <option value="10">October</option>
-                        <option value="11">November</option>
-                        <option value="12">December</option>
+                    <label for="stockTypeInput" class="mb-2 block text-sm font-semibold text-green-700">Stock
+                        Type</label>
+                    <select id="stockTypeInput" v-model="modalStockTypeValue"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                        <option value="">-- Select Stock Type --</option>
+                        <option value="Stock Room">Stock Room</option>
+                        <option value="DOH">DOH</option>
+                        <option value="Trust Funds">Trust Funds</option>
                     </select>
                 </div>
 
-                <div class="mb-6">
-                    <label for="yearInput" class="mb-2 block text-sm font-semibold text-green-700">Enter Year (Optional)</label>
-                    <input
-                        id="yearInput"
-                        v-model="modalYearValue"
-                        type="number"
-                        placeholder="e.g., 2025"
-                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
-                    />
+
+                <!-- Month Select -->
+                <div class="mb-4">
+                    <label for="monthSelect" class="mb-2 block text-sm font-semibold text-green-700">Select Month
+                        (Optional)</label>
+                    <select id="monthSelect" v-model="modalMonthValue"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                        <option value="">-- Select Month --</option>
+                        <option v-for="m in 12" :key="m" :value="m">
+                            {{ new Date(0, m - 1).toLocaleString('default', { month: 'long' }) }}
+                        </option>
+                    </select>
                 </div>
 
+                <!-- Year -->
+                <div class="mb-6">
+                    <label for="yearInput" class="mb-2 block text-sm font-semibold text-green-700">Enter Year
+                        (Optional)</label>
+                    <input id="yearInput" v-model="modalYearValue" type="number" placeholder="e.g., 2025"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition" />
+                </div>
+
+                <!-- Action Buttons -->
                 <div class="flex justify-end gap-3">
-                    <button
-                        @click="showModalRemarksPdf = false"
-                        class="rounded-lg border border-gray-300 px-6 py-3 text-gray-600 hover:bg-gray-50 transition"
-                    >
+                    <button @click="showModalRemarksPdf = false"
+                        class="rounded-lg border border-gray-300 px-6 py-3 text-gray-600 hover:bg-gray-50 transition">
                         Cancel
                     </button>
-                    <button 
-                        @click="generateRemarksPdf" 
-                        class="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 shadow-md hover:shadow-lg transition transform hover:scale-105"
-                    >
+                    <button @click="generateRemarksPdf"
+                        class="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 shadow-md hover:shadow-lg transition transform hover:scale-105">
                         Generate PDF
                     </button>
                 </div>
             </div>
         </div>
 
+
         <!-- Delete Confirmation Modal -->
-        <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+        <div v-if="showDeleteModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
             <div class="w-full max-w-md rounded-xl bg-white p-8 text-gray-900 shadow-2xl mx-4 border border-red-100">
                 <h3 class="mb-2 text-xl font-bold text-red-800">Confirm Deletion</h3>
 
@@ -674,18 +644,14 @@ onMounted(() => {
                 </div>
 
                 <div class="flex justify-end gap-3">
-                    <button
-                        @click="showDeleteModal = false"
+                    <button @click="showDeleteModal = false"
                         class="rounded-lg border border-gray-300 px-6 py-3 text-gray-600 hover:bg-gray-50 transition"
-                        :disabled="isDeleting"
-                    >
+                        :disabled="isDeleting">
                         Cancel
                     </button>
-                    <button
-                        @click="confirmDelete"
+                    <button @click="confirmDelete"
                         class="flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 text-white hover:bg-red-700 transition"
-                        :disabled="isDeleting"
-                    >
+                        :disabled="isDeleting">
                         <span v-if="isDeleting">Deleting...</span>
                         <span v-else>Delete Record</span>
                     </button>

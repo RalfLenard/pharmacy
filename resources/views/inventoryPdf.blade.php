@@ -56,6 +56,7 @@
                     <th>Expiration Date</th>
                     <th>Quantity</th>
                     <th>Stocks</th>
+                    <th>Stock Type</th> <!-- ✅ Added -->
                     <th>Date In</th>
                 </tr>
             </thead>
@@ -71,6 +72,7 @@
                         <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
                         <td>{{ $item->quantity }}</td>
                         <td>{{ $item->stocks }}</td>
+                        <td>{{ $item->stock_type ?? 'N/A' }}</td> <!-- ✅ Added -->
                         <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
                     </tr>
                 @endforeach

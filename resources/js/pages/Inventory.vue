@@ -3,17 +3,17 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, usePage, router } from '@inertiajs/vue3';
 import dayjs from 'dayjs';
-import { 
-    PlusCircle, 
-    Search, 
-    Edit, 
-    Trash2, 
-    Package, 
-    CheckCircle, 
-    XCircle, 
+import {
+    PlusCircle,
+    Search,
+    Edit,
+    Trash2,
+    Package,
+    CheckCircle,
+    XCircle,
     AlertCircle,
-    PlusIcon, 
-    SearchIcon, 
+    PlusIcon,
+    SearchIcon,
     ChevronDownIcon,
     FilterIcon,
     FileText,
@@ -52,6 +52,7 @@ interface InventoryItem {
     supplier?: string;
     created_at: string;
     updated_at: string;
+    stock_type: string; // Added stock_type based on the provided model
 }
 
 interface PaginatedInventory {
@@ -95,7 +96,6 @@ const displayFlash = (message: string, type = 'success') => {
     flashMessage.value = message;
     flashType.value = type;
     showFlash.value = true;
-    
     // Auto-hide after 5 seconds
     setTimeout(() => {
         showFlash.value = false;
@@ -105,26 +105,26 @@ const displayFlash = (message: string, type = 'success') => {
 // Check for flash messages on component mount and when page props change
 onMounted(() => {
     if (page.props.flash?.success) {
-        displayFlash(page.props.flash.success, 'success');
+        displayFlash(page.props.flash.success as string, 'success');
     } else if (page.props.flash?.error) {
-        displayFlash(page.props.flash.error, 'error');
+        displayFlash(page.props.flash.error as string, 'error');
     } else if (page.props.success) {
-        displayFlash(page.props.success, 'success');
+        displayFlash(page.props.success as string, 'success');
     } else if (page.props.error) {
-        displayFlash(page.props.error, 'error');
+        displayFlash(page.props.error as string, 'error');
     }
 });
 
 // Watch for changes in page props to detect new flash messages
 watch(() => page.props, (newProps) => {
     if (newProps.flash?.success) {
-        displayFlash(newProps.flash.success, 'success');
+        displayFlash(newProps.flash.success as string, 'success');
     } else if (newProps.flash?.error) {
-        displayFlash(newProps.flash.error, 'error');
+        displayFlash(newProps.flash.error as string, 'error');
     } else if (newProps.success) {
-        displayFlash(newProps.success, 'success');
+        displayFlash(newProps.success as string, 'success');
     } else if (newProps.error) {
-        displayFlash(newProps.error, 'error');
+        displayFlash(newProps.error as string, 'error');
     }
 }, { deep: true });
 
@@ -137,7 +137,6 @@ watch(searchQuery, (newValue) => {
     if (searchTimeout) {
         clearTimeout(searchTimeout);
     }
-    
     searchTimeout = setTimeout(() => {
         router.get('/inventory', {
             search: newValue
@@ -149,7 +148,7 @@ watch(searchQuery, (newValue) => {
 });
 
 // Filters
-const selectedBatch = ref('');
+const selectedStockType = ref(''); // Changed from selectedBatch
 
 // Modal states
 const isAddingItem = ref(false);
@@ -160,6 +159,8 @@ const showModalPdf = ref(false);
 const modalLotNumber = ref('');
 const modalMonth = ref('');
 const modalYear = ref('');
+const modalStockType = ref('');
+
 
 // Pagination navigation
 const goToPage = (url: string | null) => {
@@ -171,24 +172,25 @@ const goToPage = (url: string | null) => {
     }
 };
 
-// Get unique batch numbers for dropdown
-const uniqueBatchNumbers = computed(() => {
-    const batchNumbers = inventoryData.value.map(item => item.lot_number);
-    return [...new Set(batchNumbers)];
+// Get unique stock types for dropdown
+const uniqueStockTypes = computed(() => { // Changed from uniqueBatchNumbers
+    const stockTypes = inventoryData.value.map(item => item.stock_type); // Changed from lot_number
+    return [...new Set(stockTypes)];
 });
 
-// Filter inventory based on selected batch number
+// Filter inventory based on selected stock type
 const filteredInventory = computed(() => {
-    if (!selectedBatch.value) {
+    if (!selectedStockType.value) { // Changed from selectedBatch
         return inventoryData.value;
     }
-    return inventoryData.value.filter(item => item.lot_number === selectedBatch.value);
+    return inventoryData.value.filter(item => item.stock_type === selectedStockType.value); // Changed from lot_number
 });
 
 const generatePdfByLot = async () => {
     const lot = modalLotNumber.value.trim();
     const month = modalMonth.value;
     const year = modalYear.value;
+    const stockType = modalStockType.value; // ✅ Grab selected stock type
 
     try {
         // Check if specific lot exists (only if lot number is filled)
@@ -204,6 +206,7 @@ const generatePdfByLot = async () => {
         if (lot) params.append('lot_number', lot);
         if (month) params.append('month', month);
         if (year) params.append('year', year);
+        if (stockType) params.append('stock_type', stockType); // ✅ Add this
 
         const pdfUrl = getRoute('reports.inventory.pdf') + '?' + params.toString();
         window.open(pdfUrl, '_blank');
@@ -219,10 +222,8 @@ const generatePdfByLot = async () => {
 // Format date for display
 function formatDate(dateString: string | null | undefined): string {
     if (!dateString) return 'N/A';
-
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return 'Invalid date';
-
     return date.toLocaleDateString(undefined, {
         year: 'numeric',
         month: 'short',
@@ -248,7 +249,6 @@ const confirmDelete = (id: number) => {
 };
 
 const isDistributeModalOpen = ref(false);
-
 function openDistributeModal(item: InventoryItem) {
     selectedItem.value = item;
     isDistributeModalOpen.value = true;
@@ -282,16 +282,14 @@ const expirationStatus = (expirationDate: string) => {
     const today = dayjs();
     const exp = dayjs(expirationDate);
     const diff = exp.diff(today, 'day');
-
     if (diff <= 0) return 'Expired';
     if (diff <= 7) return 'Expiring in < 1 week';
     if (diff <= 30) return 'Expiring in < 1 month';
     if (diff <= 90) return 'Expiring in < 3 months';
-
     return null;
 };
 
-const badgeClass = (status: string) => {
+const badgeClass = (status: string | null) => {
     switch (status) {
         case 'Expired':
             return 'bg-red-100 text-red-800 border border-red-200';
@@ -313,13 +311,13 @@ const clearSearch = () => {
 
 // Check if any filters are active
 const hasActiveFilters = computed(() => {
-    return searchQuery.value || selectedBatch.value;
+    return searchQuery.value || selectedStockType.value; // Changed from selectedBatch
 });
 
 // Clear all filters
 const clearAllFilters = () => {
     searchQuery.value = '';
-    selectedBatch.value = '';
+    selectedStockType.value = ''; // Changed from selectedBatch
 };
 
 // Add this function to access routes
@@ -330,10 +328,8 @@ const getRoute = (name: string, params?: any) => {
 
 <template>
     <Head title="Stock Room" />
-
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full px-0 py-6 bg-green-50 min-h-screen">
-            
             <!-- Flash Message Notification -->
             <transition
                 enter-active-class="transform ease-out duration-300 transition"
@@ -343,11 +339,11 @@ const getRoute = (name: string, params?: any) => {
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
-                <div v-if="showFlash" 
+                <div v-if="showFlash"
                     class="fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg shadow-lg"
                     :class="[
-                        flashType === 'success' 
-                            ? 'bg-green-100 text-green-800 border border-green-200' 
+                        flashType === 'success'
+                            ? 'bg-green-100 text-green-800 border border-green-200'
                             : 'bg-red-100 text-red-800 border border-red-200'
                     ]">
                     <div class="flex items-center">
@@ -359,11 +355,11 @@ const getRoute = (name: string, params?: any) => {
                             <p class="text-sm font-medium">{{ flashMessage }}</p>
                         </div>
                         <div class="ml-auto pl-3">
-                            <button @click="showFlash = false" 
+                            <button @click="showFlash = false"
                                 class="inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2"
                                 :class="[
-                                    flashType === 'success' 
-                                        ? 'text-green-500 hover:bg-green-200 focus:ring-green-400' 
+                                    flashType === 'success'
+                                        ? 'text-green-500 hover:bg-green-200 focus:ring-green-400'
                                         : 'text-red-500 hover:bg-red-200 focus:ring-red-400'
                                 ]">
                                 <span class="sr-only">Dismiss</span>
@@ -373,7 +369,7 @@ const getRoute = (name: string, params?: any) => {
                     </div>
                 </div>
             </transition>
-            
+
             <!-- Header -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 px-4">
                 <div>
@@ -393,35 +389,35 @@ const getRoute = (name: string, params?: any) => {
                     <FilterIcon class="h-5 w-5 text-green-600" />
                     <h3 class="text-lg font-semibold text-green-800">Search & Filter Inventory</h3>
                 </div>
-                
+
                 <div class="flex flex-col md:flex-row gap-4 items-end">
                     <!-- Search Input -->
                     <div class="relative flex-grow">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <SearchIcon class="h-5 w-5 text-green-400" />
                         </div>
-                        <input 
-                            v-model="searchQuery" 
-                            type="text" 
+                        <input
+                            v-model="searchQuery"
+                            type="text"
                             placeholder="Search by brand name, generic name, or lot number..."
                             class="pl-12 pr-12 py-3 w-full border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         />
-                        <button 
-                            v-if="searchQuery" 
-                            @click="clearSearch" 
+                        <button
+                            v-if="searchQuery"
+                            @click="clearSearch"
                             class="absolute top-3.5 right-4 text-green-400 hover:text-green-600 transition"
                         >
                             <XCircle class="h-5 w-5" />
                         </button>
                     </div>
 
-                    <!-- Batch Filter -->
+                    <!-- Stock Type Filter -->
                     <div class="relative min-w-[160px]">
-                        <select v-model="selectedBatch"
+                        <select v-model="selectedStockType"
                             class="pl-4 pr-10 py-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 appearance-none bg-white w-full">
-                            <option value="">All Batches</option>
-                            <option v-for="batch in uniqueBatchNumbers" :key="batch" :value="batch">
-                                {{ batch }}
+                            <option value="">All Stock Types</option>
+                            <option v-for="stockType in uniqueStockTypes" :key="stockType" :value="stockType">
+                                {{ stockType }}
                             </option>
                         </select>
                         <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -452,9 +448,9 @@ const getRoute = (name: string, params?: any) => {
                             <XCircle class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="selectedBatch" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
-                        Batch: {{ selectedBatch }}
-                        <button @click="selectedBatch = ''" class="ml-2 text-green-600 hover:text-green-800">
+                    <div v-if="selectedStockType" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
+                        Stock Type: {{ selectedStockType }}
+                        <button @click="selectedStockType = ''" class="ml-2 text-green-600 hover:text-green-800">
                             <XCircle class="w-3 h-3" />
                         </button>
                     </div>
@@ -499,7 +495,7 @@ const getRoute = (name: string, params?: any) => {
                                     Units
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
-                                    Lot/Batch
+                                    Stock Type
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     Quantity
@@ -520,7 +516,7 @@ const getRoute = (name: string, params?: any) => {
                         </thead>
                         <tbody class="bg-white divide-y divide-green-50">
                             <template v-if="filteredInventory.length">
-                                <tr v-for="item in filteredInventory" :key="item.id" 
+                                <tr v-for="item in filteredInventory" :key="item.id"
                                     class="hover:bg-green-25 transition-colors duration-200">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                         {{ formatDate(item.date_in) }}
@@ -534,10 +530,8 @@ const getRoute = (name: string, params?: any) => {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                         {{ item.utils }}
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono bg-gray-100 text-gray-800 border border-gray-200">
-                                            {{ item.lot_number }}
-                                        </span>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {{ item.stock_type }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                                         {{ item.quantity }}
@@ -545,19 +539,19 @@ const getRoute = (name: string, params?: any) => {
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center gap-2">
                                             <span class="text-sm font-semibold text-gray-900">{{ item.stocks }}</span>
-                                            <span v-if="item.stocks == 0" 
+                                            <span v-if="item.stocks == 0"
                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
                                                 Out of Stock
                                             </span>
-                                            <span v-else-if="item.stocks <= 10" 
-                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-200">
+                                            <span v-else-if="item.stocks <= 10"
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-200">
                                                 Low Stock
                                             </span>
-                                            <span v-else-if="item.stocks <= 50" 
+                                            <span v-else-if="item.stocks <= 50"
                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200">
                                                 Medium Stock
                                             </span>
-                                            <span v-else 
+                                            <span v-else
                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
                                                 Good Stock
                                             </span>
@@ -581,14 +575,12 @@ const getRoute = (name: string, params?: any) => {
                                                 title="Edit Item">
                                                 <Edit class="h-4 w-4" />
                                             </button>
-
                                             <!-- Delete Button -->
                                             <button @click="deleteItem(item)"
                                                 class="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition"
                                                 title="Delete Item">
                                                 <Trash2 class="h-4 w-4" />
                                             </button>
-
                                             <!-- Distribute Button -->
                                             <button @click="openDistributeModal(item)"
                                                 class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition"
@@ -607,9 +599,9 @@ const getRoute = (name: string, params?: any) => {
                                         <p class="text-sm text-gray-500">
                                             {{ hasActiveFilters ? 'Try adjusting your search criteria' : 'Add your first medicine to get started' }}
                                         </p>
-                                        <button 
-                                            v-if="hasActiveFilters" 
-                                            @click="clearAllFilters" 
+                                        <button
+                                            v-if="hasActiveFilters"
+                                            @click="clearAllFilters"
                                             class="mt-2 text-green-600 hover:text-green-800 hover:underline font-medium"
                                         >
                                             Clear all filters
@@ -622,17 +614,17 @@ const getRoute = (name: string, params?: any) => {
                 </div>
 
                 <!-- Pagination -->
-                <div v-if="props.inventory.links && props.inventory.links.length > 3" 
-                     class="px-6 py-4 border-t border-green-100 bg-green-25">
+                <div v-if="props.inventory.links && props.inventory.links.length > 3"
+                    class="px-6 py-4 border-t border-green-100 bg-green-25">
                     <div class="flex items-center justify-between">
                         <div class="text-sm text-green-700">
-                            Showing {{ props.inventory.from || 0 }} to {{ props.inventory.to || 0 }} 
+                            Showing {{ props.inventory.from || 0 }} to {{ props.inventory.to || 0 }}
                             of {{ props.inventory.total || 0 }} items
                         </div>
-                        
+
                         <div class="flex items-center space-x-2">
                             <!-- Previous Button -->
-                            <button 
+                            <button
                                 v-if="props.inventory.prev_page_url"
                                 @click="goToPage(props.inventory.prev_page_url)"
                                 class="flex items-center px-3 py-2 rounded-lg border border-green-200 text-sm text-green-700 hover:bg-green-100 transition"
@@ -640,23 +632,23 @@ const getRoute = (name: string, params?: any) => {
                                 <ChevronLeftIcon class="h-4 w-4 mr-1" />
                                 Previous
                             </button>
-                            
+
                             <!-- Page Numbers -->
                             <template v-for="(link, i) in props.inventory.links" :key="i">
-                                <button 
+                                <button
                                     v-if="i > 0 && i < props.inventory.links.length - 1"
                                     @click="goToPage(link.url)"
                                     class="px-3 py-2 rounded-lg border text-sm transition"
-                                    :class="link.active 
-                                        ? 'bg-green-600 text-white border-green-600 font-semibold' 
+                                    :class="link.active
+                                        ? 'bg-green-600 text-white border-green-600 font-semibold'
                                         : 'border-green-200 text-green-700 hover:bg-green-100'"
                                 >
                                     {{ link.label }}
                                 </button>
                             </template>
-                            
+
                             <!-- Next Button -->
-                            <button 
+                            <button
                                 v-if="props.inventory.next_page_url"
                                 @click="goToPage(props.inventory.next_page_url)"
                                 class="flex items-center px-3 py-2 rounded-lg border border-green-200 text-sm text-green-700 hover:bg-green-100 transition"
@@ -666,7 +658,6 @@ const getRoute = (name: string, params?: any) => {
                             </button>
                         </div>
                     </div>
-                    
                     <!-- Page Info for Mobile -->
                     <div class="mt-3 text-center text-xs text-green-600 md:hidden">
                         Page {{ props.inventory.current_page }} of {{ props.inventory.last_page }}
@@ -685,29 +676,46 @@ const getRoute = (name: string, params?: any) => {
                         <XCircle class="w-6 h-6" />
                     </button>
                 </div>
-
                 <div class="space-y-4">
+
+                    <!-- Stock Type Dropdown -->
+                    <div>
+                        <label for="stockTypeInput" class="block text-sm font-semibold text-green-700 mb-2">
+                            Stock Type (optional)
+                        </label>
+                        <select
+                            id="stockTypeInput"
+                            v-model="modalStockType"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                        >
+                            <option value="">All Stock Types</option>
+                            <option value="Stock Room">Stock Room</option>
+                            <option value="DOH">DOH</option>
+                            <option value="Trust Funds">Trust Funds</option>
+                        </select>
+                    </div>
+
+
                     <!-- Lot Number Input -->
                     <div>
                         <label for="lotInput" class="block text-sm font-semibold text-green-700 mb-2">
                             Lot Number (optional)
                         </label>
-                        <input 
-                            id="lotInput" 
-                            v-model="modalLotNumber" 
-                            type="text" 
+                        <input
+                            id="lotInput"
+                            v-model="modalLotNumber"
+                            type="text"
                             placeholder="e.g., LOT123"
                             class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         />
                     </div>
-
                     <!-- Month Dropdown -->
                     <div>
                         <label for="monthInput" class="block text-sm font-semibold text-green-700 mb-2">
                             Month (optional)
                         </label>
-                        <select 
-                            id="monthInput" 
+                        <select
+                            id="monthInput"
                             v-model="modalMonth"
                             class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         >
@@ -717,22 +725,20 @@ const getRoute = (name: string, params?: any) => {
                             </option>
                         </select>
                     </div>
-
                     <!-- Year Input -->
                     <div>
                         <label for="yearInput" class="block text-sm font-semibold text-green-700 mb-2">
                             Year (optional)
                         </label>
-                        <input 
-                            id="yearInput" 
-                            v-model="modalYear" 
-                            type="number" 
+                        <input
+                            id="yearInput"
+                            v-model="modalYear"
+                            type="number"
                             placeholder="e.g., 2025"
                             class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         />
                     </div>
                 </div>
-
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-3 mt-8">
                     <button @click="showModalPdf = false"
@@ -747,7 +753,6 @@ const getRoute = (name: string, params?: any) => {
             </div>
         </div>
     </AppLayout>
-
     <!-- Modals -->
     <AddItemModal :is-open="isAddingItem" @close="isAddingItem = false" @save="handleItemAdded" />
     <EditItemModal v-if="selectedItem" :is-open="isEditingItem" :item="selectedItem" @close="isEditingItem = false" @save="handleItemEdited" />
@@ -759,7 +764,6 @@ const getRoute = (name: string, params?: any) => {
 .hover\:bg-green-25:hover {
     background-color: #f0fdf4;
 }
-
 .bg-green-25 {
     background-color: #f0fdf4;
 }

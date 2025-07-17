@@ -47,6 +47,7 @@ class InventoryController extends Controller
                 'lotNumber' => 'required|string|max:255',
                 'quantity' => 'required|integer|min:1',
                 'expirationDate' => 'required|date|after_or_equal:dateIn',
+                'stockType' => 'required|in:Stock Room,DOH,Trust Funds',
             ]);
     
             Inventory::create([
@@ -58,6 +59,7 @@ class InventoryController extends Controller
                 'quantity' => $validated['quantity'],
                 'stocks' => $validated['quantity'], // Initial stocks = quantity
                 'expiration_date' => $validated['expirationDate'],
+                'stock_type' => $validated['stockType'],
             ]);
     
             return redirect()->back()->with('success', 'Inventory item added successfully!');
@@ -77,43 +79,45 @@ class InventoryController extends Controller
      * Update an existing inventory item.
      */
     public function update(Request $request, $id)
-{
-    try {
-        $validated = $request->validate([
-            'brandName' => 'required|string|max:255',
-            'genericName' => 'required|string|max:255',
-            'lotNumber' => 'required|string|max:255',
-            'utils' => 'required|string|max:255',
-            'quantity' => 'required|integer|min:1',
-            'dateIn' => 'required|date',
-            'expirationDate' => 'required|date|after_or_equal:dateIn',
-        ]);
-
-        $inventory = Inventory::findOrFail($id);
-
-        $inventory->update([
-            'brand_name' => $validated['brandName'],
-            'generic_name' => $validated['genericName'],
-            'utils' => $validated['utils'],
-            'lot_number' => $validated['lotNumber'],
-            'quantity' => $validated['quantity'],
-            'stocks' => $validated['quantity'], // optionally adjust this logic
-            'date_in' => $validated['dateIn'],
-            'expiration_date' => $validated['expirationDate'],
-        ]);
-
-        return redirect()->route('inventory')->with('success', 'Inventory updated successfully.');
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return redirect()->back()
-            ->withErrors($e->validator)
-            ->withInput();
-    } catch (\Exception $e) {
-        return redirect()->back()
-            ->with('error', 'An unexpected error occurred: ' . $e->getMessage())
-            ->withInput();
+    {
+        try {
+            $validated = $request->validate([
+                'brandName' => 'required|string|max:255',
+                'genericName' => 'required|string|max:255',
+                'lotNumber' => 'required|string|max:255',
+                'utils' => 'required|string|max:255',
+                'quantity' => 'required|integer|min:1',
+                'dateIn' => 'required|date',
+                'expirationDate' => 'required|date|after_or_equal:dateIn',
+                'stockType' => 'required|in:Stock Room,DOH,Trust Funds',
+            ]);
+    
+            $inventory = Inventory::findOrFail($id);
+    
+            $inventory->update([
+                'brand_name' => $validated['brandName'],
+                'generic_name' => $validated['genericName'],
+                'utils' => $validated['utils'],
+                'lot_number' => $validated['lotNumber'],
+                'quantity' => $validated['quantity'],
+                'stocks' => $validated['quantity'], // optionally adjust this logic
+                'date_in' => $validated['dateIn'],
+                'expiration_date' => $validated['expirationDate'],
+                'stock_type' => $validated['stockType'],
+            ]);
+    
+            return redirect()->route('inventory')->with('success', 'Inventory updated successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->validator)
+                ->withInput();
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'An unexpected error occurred: ' . $e->getMessage())
+                ->withInput();
+        }
     }
-}
-
+    
 
 public function destroy($id)
 {

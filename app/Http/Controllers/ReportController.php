@@ -86,9 +86,10 @@ class ReportController extends Controller
     public function generateInventoryReport(Request $request)
     {
         try {
-            $lot_number = $request->input('lot_number'); // optional
-            $month = $request->input('month'); // optional
-            $year = $request->input('year');   // optional
+            $lot_number = $request->input('lot_number');
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $stock_type = $request->input('stock_type'); // ✅ NEW
 
             $query = Inventory::query();
 
@@ -103,13 +104,19 @@ class ReportController extends Controller
                 $query->whereYear('date_in', $year);
             }
 
+            if ($stock_type) { // ✅ NEW filter
+                $query->where('stock_type', $stock_type);
+            }
+
             $inventories = $query->orderBy('date_in', 'desc')->get();
 
             if ($inventories->isEmpty()) {
                 return back()->with('error', 'No inventory found for the specified filters.');
             }
 
+            // Build report title
             $title = 'Inventory Report';
+            if ($stock_type) $title .= " - $stock_type"; // ✅ NEW
             if ($lot_number) $title .= " - Lot #$lot_number";
             if ($month && $year) $title .= " for " . Carbon::create()->month($month)->format('F') . " $year";
             elseif ($year) $title .= " for $year";
@@ -138,11 +145,16 @@ class ReportController extends Controller
         $lot_number = $request->input('lot_number');
         $month = $request->input('month'); // optional
         $year = $request->input('year');   // optional
+        $stock_type = $request->input('stock_type'); // ✅ NEW
 
         $query = Inventory::query();
 
         if ($lot_number) {
             $query->where('lot_number', $lot_number);
+        }
+
+        if ($stock_type) { // ✅ NEW filter
+            $query->where('stock_type', $stock_type);
         }
 
         if ($month && $year) {
@@ -163,67 +175,70 @@ class ReportController extends Controller
     {
         try {
             // Get query parameters
-            $lotNumber = $request->query('lot_number');
+            $stockType = $request->query('stock_type');
             $month     = $request->query('month');
             $year      = $request->query('year');
-
-            // Sanitize and validate month
+    
+            // Sanitize and validate month/year
             $month = !empty($month) ? (int) $month : null;
             $year  = !empty($year) ? (int) $year : null;
-
-            // Base query with relationship
+    
+            // Base query with inventory relationship
             $query = Distribution::with('inventory');
-
-            // Apply filters
+    
+            // Remarks filter
             if ($remarks && strtolower($remarks) !== 'all') {
                 $query->where('remarks', $remarks);
             }
-
-            if ($lotNumber) {
-                $query->whereHas('inventory', function ($q) use ($lotNumber) {
-                    $q->where('lot_number', $lotNumber);
+    
+            // Filter by stock type (instead of lot number)
+            if ($stockType) {
+                $query->whereHas('inventory', function ($q) use ($stockType) {
+                    $q->where('stock_type', $stockType);
                 });
             }
-
+    
+            // Date filter
             if ($month && $year) {
                 if ($month >= 1 && $month <= 12) {
                     $query->whereMonth('date_distribute', $month)
-                        ->whereYear('date_distribute', $year);
+                          ->whereYear('date_distribute', $year);
                 }
             } elseif ($year) {
                 $query->whereYear('date_distribute', $year);
             }
-
+    
+            // Get results
             $distributions = $query->get();
-
+    
             if ($distributions->isEmpty()) {
                 return back()->with('error', 'No distributions found for the selected filters.');
             }
-
-            // Generate HTML from view
+    
+            // Render the view
             $html = View::make('distributePdf', [
                 'distributions' => $distributions,
                 'remarks'       => $remarks ?? 'All',
-                'lot_number'    => $lotNumber ?? 'All',
+                'stock_type'    => $stockType ?? 'All',
                 'month'         => $month,
                 'year'          => $year,
             ])->render();
-
-            // File name formatting
+    
+            // Build file name
             $timestamp = now()->format('Ymd_His');
             $filename = 'distribution_' .
                 Str::slug($remarks ?? 'all') . '_' .
-                Str::slug($lotNumber ?? 'all') . '_' .
+                Str::slug($stockType ?? 'all') . '_' .
                 ($month ? $month . '-' . $year : ($year ?? 'all')) . '_' .
                 $timestamp . '.pdf';
-
-            // Generate PDF
+    
+            // Generate PDF with Browsershot
             $pdf = Browsershot::html($html)
                 ->format('A4')
                 ->margins(10, 10, 10, 10)
                 ->showBackground()
                 ->pdf();
-
+    
             // Stream the PDF
             return new StreamedResponse(function () use ($pdf) {
                 echo $pdf;
@@ -235,12 +250,12 @@ class ReportController extends Controller
             return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
     }
-
+    
 
     public function checkDistributionByRemarks(Request $request)
     {
         $remarks   = $request->query('remarks');
-        $lotNumber = $request->query('lot_number');
+        $stockType = $request->query('stock_type');
         $month     = $request->query('month');
         $year      = $request->query('year');
 
@@ -256,9 +271,9 @@ class ReportController extends Controller
             $query->where('remarks', $remarks);
         }
 
-        if ($lotNumber) {
-            $query->whereHas('inventory', function ($q) use ($lotNumber) {
-                $q->where('lot_number', $lotNumber);
+        if ($stockType) {
+            $query->whereHas('inventory', function ($q) use ($stockType) {
+                $q->where('stock_type', $stockType);
             });
         }
 

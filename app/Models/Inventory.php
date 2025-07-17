@@ -17,7 +17,8 @@ class Inventory extends Model
         'expiration_date',
         'generic_name',
         'utils',
-        'stocks'
+        'stocks',
+        'stock_type'
     ];
 
     protected $casts = [
