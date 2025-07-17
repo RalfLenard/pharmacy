@@ -689,9 +689,10 @@ const getRoute = (name: string, params?: any) => {
                             class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         >
                             <option value="">All Stock Types</option>
-                            <option value="Stock Room">Stock Room</option>
+                            <option value="LGU Procured">LGU Procured</option>
                             <option value="DOH">DOH</option>
                             <option value="Trust Funds">Trust Funds</option>
+                            <option value="Donations">Donations</option>
                         </select>
                     </div>
 

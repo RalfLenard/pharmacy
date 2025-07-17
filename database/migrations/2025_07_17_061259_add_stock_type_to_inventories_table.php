@@ -12,7 +12,7 @@ class AddStockTypeToInventoriesTable extends Migration
     public function up(): void
     {
         Schema::table('inventories', function (Blueprint $table) {
-            $table->enum('stock_type', ['Stock Room', 'DOH', 'Trust Funds'])->default('Stock Room')->after('stocks');
+            $table->enum('stock_type', ['LGU Procured', 'DOH', 'Trust Funds', 'Donations'])->default('LGU Procured')->after('stocks');
         });
     }
 

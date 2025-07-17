@@ -89,7 +89,7 @@ class InventoryController extends Controller
                 'quantity' => 'required|integer|min:1',
                 'dateIn' => 'required|date',
                 'expirationDate' => 'required|date|after_or_equal:dateIn',
-                'stockType' => 'required|in:Stock Room,DOH,Trust Funds',
+                'stockType' => 'required|in:LGU Procured,DOH,Trust Funds,Donations',
             ]);
     
             $inventory = Inventory::findOrFail($id);

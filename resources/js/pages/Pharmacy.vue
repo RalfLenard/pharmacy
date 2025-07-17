@@ -573,9 +573,10 @@ onMounted(() => {
                     <select id="stockTypeInput" v-model="modalStockTypeValue"
                         class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                         <option value="">-- Select Stock Type --</option>
-                        <option value="Stock Room">Stock Room</option>
+                        <option value="LGU Procured">LGU Procured</option>
                         <option value="DOH">DOH</option>
                         <option value="Trust Funds">Trust Funds</option>
+                        <option value="Donations">Donations</option>
                     </select>
                 </div>
 
