@@ -155,76 +155,90 @@ class RecipientController extends Controller
 
     // This method updates an existing recipient distribution record
     public function updateRecipientDistribution(Request $request, $id)
-    {
-        // Validate input data
-        $request->validate([
-            'distribution_id' => 'required|exists:distributions,id',
-            'quantity' => 'required|integer|min:1',
-            'date_given' => 'required|date',
+{
+    // Validate input data
+    $request->validate([
+        'distribution_id' => 'required|exists:distributions,id',
+        'quantity' => 'required|integer|min:1',
+        'date_given' => 'required|date',
+
+        // Recipient fields
+        'full_name' => 'required|string|max:255',
+        'birthdate' => 'required|date',
+        'barangay' => 'required|string|max:255',
+        'gender' => 'required|in:Male,Female,Other',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+        // Find the existing recipient distribution record
+        $recipientDist = RecipientDistribution::findOrFail($id);
+        $oldQuantity = $recipientDist->quantity;
+        $newQuantity = $request->quantity;
+
+        // Find the distribution records for old and new distribution
+        $oldDistribution = Distribution::findOrFail($recipientDist->distribution_id);
+        $newDistribution = Distribution::findOrFail($request->distribution_id);
+
+        // Update recipient info
+        $recipient = $recipientDist->recipient;
+        $recipient->update([
+            'full_name' => $request->full_name,
+            'birthdate' => $request->birthdate,
+            'barangay' => $request->barangay,
+            'gender' => $request->gender,
         ]);
 
-        DB::beginTransaction();
+        // If medicine (distribution_id) is changed
+        if ($recipientDist->distribution_id != $request->distribution_id) {
+            // Restore old stock
+            $oldDistribution->increment('stocks', $oldQuantity);
 
-        try {
-            // Find the existing recipient distribution record
-            $recipientDist = RecipientDistribution::findOrFail($id);
-            $oldQuantity = $recipientDist->quantity;
-            $newQuantity = $request->quantity;
-
-            // Find the distribution records for old and new distribution
-            $oldDistribution = Distribution::findOrFail($recipientDist->distribution_id);
-            $newDistribution = Distribution::findOrFail($request->distribution_id);
-
-            // If medicine (distribution_id) is changed
-            if ($recipientDist->distribution_id != $request->distribution_id) {
-                // Restore old stock
-                $oldDistribution->increment('stocks', $oldQuantity);
-
-                // Check if new distribution has enough stock
-                if ($newDistribution->stocks < $newQuantity) {
-                    return redirect()->back()->with('error', 'Not enough stock in new distribution.');
-                }
-
-                // Reduce new distribution stock
-                $newDistribution->decrement('stocks', $newQuantity);
-
-                // Update recipient distribution
-                $recipientDist->update([
-                    'distribution_id' => $newDistribution->id,
-                    'quantity' => $newQuantity,
-                    'date_given' => $request->date_given,
-                ]);
-
-            } else {
-                // Same distribution, adjust stock by difference
-                $diff = $newQuantity - $oldQuantity;
-
-                if ($diff > 0) {
-                    if ($newDistribution->stocks < $diff) {
-                        return redirect()->back()->with('error', 'Not enough stock to increase quantity.');
-                    }
-                    $newDistribution->decrement('stocks', $diff);
-                } elseif ($diff < 0) {
-                    $newDistribution->increment('stocks', abs($diff));
-                }
-
-                // Update recipient distribution
-                $recipientDist->update([
-                    'quantity' => $newQuantity,
-                    'date_given' => $request->date_given,
-                ]);
+            // Check if new distribution has enough stock
+            if ($newDistribution->stocks < $newQuantity) {
+                return redirect()->back()->with('error', 'Not enough stock in new distribution.');
             }
 
-            DB::commit();
+            // Reduce new distribution stock
+            $newDistribution->decrement('stocks', $newQuantity);
 
-            return redirect()->back()->with('success', 'Recipient distribution updated successfully.');
+            // Update recipient distribution
+            $recipientDist->update([
+                'distribution_id' => $newDistribution->id,
+                'quantity' => $newQuantity,
+                'date_given' => $request->date_given,
+            ]);
 
-        } catch (\Exception $e) {
-            DB::rollBack();
+        } else {
+            // Same distribution, adjust stock by difference
+            $diff = $newQuantity - $oldQuantity;
 
-            return redirect()->back()->with('error', 'Something went wrong: ' . $e->getMessage());
+            if ($diff > 0) {
+                if ($newDistribution->stocks < $diff) {
+                    return redirect()->back()->with('error', 'Not enough stock to increase quantity.');
+                }
+                $newDistribution->decrement('stocks', $diff);
+            } elseif ($diff < 0) {
+                $newDistribution->increment('stocks', abs($diff));
+            }
+
+            // Update recipient distribution
+            $recipientDist->update([
+                'quantity' => $newQuantity,
+                'date_given' => $request->date_given,
+            ]);
         }
+
+        DB::commit();
+
+        return redirect()->back()->with('success', 'Recipient distribution updated successfully.');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return redirect()->back()->with('error', 'Something went wrong: ' . $e->getMessage());
     }
+}
 
     public function show($id)
     {

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Inventory Report - Lot {{ $lot_number }}</title>
+    <title>{{ $title ?? 'Inventory Report' }}</title>
     <style>
         body {
             font-family: DejaVu Sans, sans-serif;
@@ -15,15 +15,6 @@
             text-align: center;
             font-size: 18px;
             margin-bottom: 10px;
-        }
-
-        .meta {
-            margin-bottom: 20px;
-        }
-
-        .meta p {
-            margin: 0;
-            font-size: 13px;
         }
 
         table {
@@ -50,37 +41,45 @@
     </style>
 </head>
 <body>
-    <h3>Lot Number / Batch: {{ $inventories->first()->lot_number }}</h3>
+    <h1>{{ $title ?? 'Inventory Report' }}</h1>
+    <h5>As of {{ now()->format('F j, Y') }}</h5>
 
-    <table>
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Brand Name</th>
-                <th>Generic Name</th>
-                <th>Quantity</th>
-                <th>Stocks</th>
-                <th>Units</th>
-                <th>Date In</th>
-                <th>Expiration Date</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($inventories as $index => $item)
+    @if ($inventories->isNotEmpty())
+        <table>
+            <thead>
                 <tr>
-                    <td>{{ $index + 1 }}</td>
-                    <td>{{ $item->brand_name }}</td>
-                    <td>{{ $item->generic_name }}</td>
-                    <td>{{ $item->quantity }}</td>
-                    <td>{{ $item->stocks }}</td>
-                    <td>{{ $item->utils }}</td>
-                    <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
-                    <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
+                    <th>#</th>
+                    <th>Generic Name</th>
+                    <th>Brand Name</th>
+                    <th>Units</th>
+                    <th>Lot Number</th>
+                    <th>Expiration Date</th>
+                    <th>Quantity</th>
+                    <th>Stocks</th>
+                    <th>Date In</th>
                 </tr>
-            @endforeach
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @php $i = 1; @endphp
+                @foreach ($inventories->sortBy(fn($item) => strtolower($item->generic_name ?? '')) as $item)
+                    <tr>
+                        <td>{{ $i++ }}</td>
+                        <td>{{ $item->generic_name }}</td>
+                        <td>{{ $item->brand_name }}</td>
+                        <td>{{ $item->utils }}</td>
+                        <td>{{ $item->lot_number }}</td>
+                        <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
+                        <td>{{ $item->quantity }}</td>
+                        <td>{{ $item->stocks }}</td>
+                        <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
 
-    <p class="summary">Total Records: {{ $inventories->count() }}</p>
+        <p class="summary">Total Records: {{ $inventories->count() }}</p>
+    @else
+        <p>No inventory records found for the selected filters.</p>
+    @endif
 </body>
 </html>

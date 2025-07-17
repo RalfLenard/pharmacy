@@ -31,6 +31,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/pharmacy', [DistributingController::class, 'index']);
     Route::post('/distribute/{id}', [DistributingController::class, 'distribute'])->name('inventory.distribute');
+    Route::delete('/distribution/delete/{id}', [DistributingController::class, 'delete'])->name('distribution.delete');
 
     Route::get('/recipients', [RecipientController::class, 'index'])->name('recipients');
     Route::get('/medicines', [RecipientController::class, 'medicines'])->name('medicines');
@@ -43,18 +44,19 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/report/recipient-distributions/pdf', [ReportController::class, 'generateFilteredPDF']);
     Route::get('/reports/distribution/remarks/{remarks}', [ReportController::class, 'generateByRemarks'])->name('reports.distribution.remarks');
-    Route::get('/reports/inventory/{lot_number}', [ReportController::class, 'generateInventoryReport'])->name('reports.inventory.pdf');
 
-    Route::get('/reports/inventory/check/{lot_number}', [ReportController::class, 'checkInventoryLot'])
-    ->name('reports.inventory.check');
+    Route::get('/inventory/report', [ReportController::class, 'generateInventoryReport'])->name('reports.inventory.pdf');
 
-    Route::get('/reports/distribution/check', [ReportController::class, 'checkDistributionByRemarks'])
-    ->name('reports.distribution.check');
+    Route::get('/inventory/check/{lot_number}', [ReportController::class, 'checkInventoryLot'])->name('reports.inventory.check');
+
+   // In routes/web.php
+    Route::get('/reports/distribution/remarks/{remarks}', [ReportController::class, 'generateByRemarks'])->name('reports.distribution.generate');
+    Route::get('/reports/distribution/check', [ReportController::class, 'checkDistributionByRemarks'])->name('reports.distribution.check');
 
     Route::get('/report/recipient-distributions/check', [ReportController::class, 'checkFilteredPDF'])
     ->name('report.recipient-distributions.check');
 
-
+    Route::get('/available-months', [ReportController::class, 'getAvailableMonths']);
 
 
 });

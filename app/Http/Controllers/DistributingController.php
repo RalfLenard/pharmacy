@@ -10,17 +10,41 @@ use Inertia\Inertia;
 class DistributingController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
+        $remarks = $request->input('remarks', 'Pharmacy');
+        $search = $request->input('search');
+    
         $distributed = Distribution::with('inventory')
+            ->when($remarks, function ($query) use ($remarks) {
+                $query->where('remarks', $remarks);
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('inventory', function ($q) use ($search) {
+                    $q->where('brand_name', 'like', "%{$search}%")
+                      ->orWhere('generic_name', 'like', "%{$search}%")
+                      ->orWhere('lot_number', 'like', "%{$search}%");
+                });
+            })
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(50)
+            ->appends([
+                'remarks' => $remarks,
+                'search' => $search,
+            ]);
+    
+        // Get distinct remarks values for the dropdown
+        $remarksOptions = Distribution::select('remarks')->distinct()->pluck('remarks');
     
         return Inertia::render('Pharmacy', [
             'distributed' => $distributed,
+            'filters' => [
+                'remarks' => $remarks,
+                'search' => $search,
+            ],
+            'remarksOptions' => $remarksOptions,
         ]);
     }
-    
     
 
     public function distribute(Request $request, $id)
@@ -72,6 +96,27 @@ class DistributingController extends Controller
             return redirect()->back()->with('error', 'An unexpected error occurred: ' . $e->getMessage());
         }
     }
+
+
+    public function delete($id)
+    {
+        try {
+            $distributed = Distribution::findOrFail($id);
+            $distributed->delete();
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Distribution record deleted successfully.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting the record.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
     
     
 }

@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted } from 'vue';
-import { PlusIcon, PencilIcon, EyeIcon, SearchIcon, ChevronDownIcon, ClockIcon, FilterIcon, XIcon } from 'lucide-vue-next';
+import { PlusIcon, PencilIcon, EyeIcon, SearchIcon, ChevronDownIcon, ClockIcon, FilterIcon, XIcon, CheckCircle, AlertCircle, XCircle, Users, FileText, Calendar } from 'lucide-vue-next';
 import AddRecipientModal from '@/components/Modals/AddRecipientModal.vue';
 import UpdateDistributionModal from '@/components/Modals/UpdateDistributionModal.vue';
 import AddMedicineModal from '@/components/Modals/AddMedicineModal.vue';
@@ -76,6 +76,7 @@ interface Props {
         lot_number?: string;
     };
 }
+
 const page = usePage();
 const props = defineProps<Props>();
 const showModalFilteredPdf = ref(false);
@@ -89,6 +90,11 @@ const filterLotNumber = ref(props.filters?.lot_number || '');
 const filterBrandName = ref(props.filters?.brand_name || '');
 const filterGenericName = ref(props.filters?.generic_name || '');
 
+// PDF Generation loading state
+const isGeneratingPdf = ref(false);
+const availableMonths = ref<number[]>([]);
+const isLoadingMonths = ref(false);
+
 // Current date for year dropdown
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
@@ -96,6 +102,12 @@ const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
 const flashMessage = ref('');
 const flashType = ref('');
 const showFlash = ref(false);
+
+// Month names mapping
+const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 // Debug function to check what flash messages are available
 const checkFlashMessages = () => {
@@ -128,6 +140,41 @@ const displayFlash = (message, type = 'success') => {
         showFlash.value = false;
     }, 5000);
 };
+
+// Load available months when year changes
+const loadAvailableMonths = async (year?: string) => {
+    if (!year) {
+        availableMonths.value = [];
+        return;
+    }
+
+    isLoadingMonths.value = true;
+    try {
+        const response = await axios.get('/available-months', {
+            params: { year }
+        });
+        availableMonths.value = response.data.months || [];
+    } catch (error) {
+        console.error('Failed to load available months:', error);
+        availableMonths.value = [];
+    } finally {
+        isLoadingMonths.value = false;
+    }
+};
+
+// Watch for year changes in PDF modal
+watch(filterYear, (newYear) => {
+    if (newYear) {
+        loadAvailableMonths(newYear);
+        // Reset month if it's not available in the new year
+        if (filterMonth.value && !availableMonths.value.includes(parseInt(filterMonth.value))) {
+            filterMonth.value = '';
+        }
+    } else {
+        availableMonths.value = [];
+        filterMonth.value = '';
+    }
+});
 
 // Check for flash messages on component mount and when page props change
 onMounted(() => {
@@ -248,41 +295,84 @@ const uniqueBarangays = computed(() => {
     return Array.from(barangays).sort();
 });
 
+// Fixed PDF generation function
 const generateFilteredPdf = async () => {
-    let params = new URLSearchParams();
-
-    if (filterMedicine.value) params.append('medicine', filterMedicine.value);
-    if (filterBarangay.value) params.append('barangay', filterBarangay.value);
-    if (filterGender.value) params.append('gender', filterGender.value);
-    if (filterMonth.value) params.append('month', filterMonth.value);
-    if (filterYear.value) params.append('year', filterYear.value);
-    if (filterBrandName.value) params.append('brand_name', filterBrandName.value);
-    if (filterGenericName.value) params.append('generic_name', filterGenericName.value);
-    if (filterLotNumber.value) params.append('lot_number', filterLotNumber.value);
-
+    if (isGeneratingPdf.value) return;
+    
+    isGeneratingPdf.value = true;
+    
     try {
+        // Build parameters object - only include non-empty values
+        const params: Record<string, string> = {};
+        
+        if (filterBrandName.value.trim()) params.brand_name = filterBrandName.value.trim();
+        if (filterGenericName.value.trim()) params.generic_name = filterGenericName.value.trim();
+        if (filterLotNumber.value.trim()) params.lot_number = filterLotNumber.value.trim();
+        if (filterBarangay.value.trim()) params.barangay = filterBarangay.value.trim();
+        if (filterGender.value.trim()) params.gender = filterGender.value.trim();
+        if (filterMonth.value !== '' && filterMonth.value !== null) {
+            params.month = String(filterMonth.value);
+        }
+        if (filterYear.value !== '' && filterYear.value !== null) {
+            params.year = String(filterYear.value);
+        }
+
         // First, check if there are records that match the filters
-        const response = await axios.get(route('report.recipient-distributions.check'), {
-            params: Object.fromEntries(params),
+        const checkResponse = await axios.get('/report/recipient-distributions/check', {
+            params: params,
         });
 
-        if (response.data.exists) {
+        if (checkResponse.data.exists) {
             // If records exist, proceed to generate PDF
-            const url = `/report/recipient-distributions/pdf?${params.toString()}`;
-            window.open(url, '_blank');
-            displayFlash('Generating filtered PDF...', 'success');
+            const queryString = new URLSearchParams(params).toString();
+            const pdfUrl = `/report/recipient-distributions/pdf${queryString ? '?' + queryString : ''}`;
+            
+            // Open PDF in new tab
+            window.open(pdfUrl, '_blank');
+            displayFlash('PDF generated successfully!', 'success');
         } else {
             displayFlash('No records found for the selected filters.', 'error');
         }
 
     } catch (error) {
-        console.error(error);
-        displayFlash('Failed to validate filters. Please try again.', 'error');
+        console.error('PDF generation error:', error);
+        if (axios.isAxiosError(error)) {
+            if (error.response?.data?.message) {
+                displayFlash(error.response.data.message, 'error');
+            } else if (error.response?.status === 404) {
+                displayFlash('PDF generation endpoint not found.', 'error');
+            } else {
+                displayFlash('Failed to generate PDF. Please try again.', 'error');
+            }
+        } else {
+            displayFlash('Failed to generate PDF. Please try again.', 'error');
+        }
+    } finally {
+        isGeneratingPdf.value = false;
+        showModalFilteredPdf.value = false;
     }
-
-    showModalFilteredPdf.value = false;
 };
 
+// Clear PDF filters
+const clearPdfFilters = () => {
+    filterBrandName.value = '';
+    filterGenericName.value = '';
+    filterLotNumber.value = '';
+    filterBarangay.value = '';
+    filterGender.value = '';
+    filterMonth.value = '';
+    filterYear.value = '';
+    availableMonths.value = [];
+};
+
+// Open PDF modal and load initial data
+const openPdfModal = () => {
+    showModalFilteredPdf.value = true;
+    // If year is already selected, load available months
+    if (filterYear.value) {
+        loadAvailableMonths(filterYear.value);
+    }
+};
 
 // Apply advanced search filters
 const applyAdvancedSearch = () => {
@@ -482,8 +572,9 @@ const goToPage = (url: string | null) => {
     <Head title="Recipients" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="w-full px-0 py-6">
+        <div class="w-full px-0 py-6 bg-green-50 min-h-screen">
 
+            <!-- Flash Message Notification -->
             <transition
                 enter-active-class="transform ease-out duration-300 transition"
                 enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
@@ -496,15 +587,13 @@ const goToPage = (url: string | null) => {
                     class="fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg shadow-lg"
                     :class="[
                         flashType === 'success' 
-                            ? (darkMode ? 'bg-green-800 text-green-100 border border-green-700' : 'bg-green-100 text-green-800 border border-green-200') 
-                            : (darkMode ? 'bg-red-800 text-red-100 border border-red-700' : 'bg-red-100 text-red-800 border border-red-200')
+                            ? 'bg-green-100 text-green-800 border border-green-200' 
+                            : 'bg-red-100 text-red-800 border border-red-200'
                     ]">
                     <div class="flex items-center">
                         <div class="flex-shrink-0">
-                            <CheckCircle v-if="flashType === 'success'" class="h-5 w-5" 
-                                :class="darkMode ? 'text-green-200' : 'text-green-500'" />
-                            <AlertCircle v-else class="h-5 w-5" 
-                                :class="darkMode ? 'text-red-200' : 'text-red-500'" />
+                            <CheckCircle v-if="flashType === 'success'" class="h-5 w-5 text-green-500" />
+                            <AlertCircle v-else class="h-5 w-5 text-red-500" />
                         </div>
                         <div class="ml-3">
                             <p class="text-sm font-medium">{{ flashMessage }}</p>
@@ -514,8 +603,8 @@ const goToPage = (url: string | null) => {
                                 class="inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2"
                                 :class="[
                                     flashType === 'success' 
-                                        ? (darkMode ? 'text-green-200 hover:bg-green-700 focus:ring-green-600' : 'text-green-500 hover:bg-green-200 focus:ring-green-400') 
-                                        : (darkMode ? 'text-red-200 hover:bg-red-700 focus:ring-red-600' : 'text-red-500 hover:bg-red-200 focus:ring-red-400')
+                                        ? 'text-green-500 hover:bg-green-200 focus:ring-green-400' 
+                                        : 'text-red-500 hover:bg-red-200 focus:ring-red-400'
                                 ]">
                                 <span class="sr-only">Dismiss</span>
                                 <XCircle class="h-4 w-4" />
@@ -526,225 +615,238 @@ const goToPage = (url: string | null) => {
             </transition>
 
             <!-- Header -->
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 px-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 px-4">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-800">Recipients</h1>
-                    <p class="text-gray-600">Manage medicine recipients and distributions</p>
+                    <h1 class="text-4xl font-bold text-green-800 mb-2">Medicine Recipients</h1>
+                    <p class="text-green-600">Manage medicine recipients and track distribution records</p>
                 </div>
                 <button @click="openAddModal"
-                    class="mt-4 md:mt-0 flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors">
-                    <PlusIcon class="w-4 h-4 mr-2" />
-                    Add Recipient
+                    class="mt-4 md:mt-0 flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                    <PlusIcon class="w-5 h-5 mr-2" />
+                    Add New Recipient
                 </button>
             </div>
 
             <!-- Search and Filters -->
-            <div class="bg-white rounded-lg shadow-sm col-span-1 p-4 mb-6 mx-4">
+            <div class="bg-white rounded-xl shadow-sm border border-green-100 p-6 mb-8 mx-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <FilterIcon class="h-5 w-5 text-green-600" />
+                    <h3 class="text-lg font-semibold text-green-800">Search & Filter Recipients</h3>
+                </div>
+                
                 <div class="flex flex-col md:flex-row gap-4">
                     <!-- Search input -->
                     <div class="relative flex-grow">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <SearchIcon class="h-5 w-5 text-gray-400" />
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <SearchIcon class="h-5 w-5 text-green-400" />
                         </div>
                         <input v-model="searchQuery" type="text" placeholder="Search recipients by name..."
-                            class="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500" />
+                            class="pl-12 pr-4 py-3 w-full border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition" />
                     </div>
 
                     <!-- Quick filters -->
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex flex-wrap gap-3">
                         <!-- Brand Name Dropdown -->
                         <div class="relative">
                             <select v-model="advancedSearch.brand_name" @change="applyAdvancedSearch"
-                                class="pl-3 pr-8 py-2 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500 appearance-none">
+                                class="pl-4 pr-10 py-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 appearance-none bg-white min-w-[140px]">
                                 <option value="">All Brands</option>
                                 <option v-for="brand in uniqueBrandNames" :key="brand" :value="brand">
                                     {{ brand }}
                                 </option>
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                                <ChevronDownIcon class="h-4 w-4 text-gray-400" />
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                <ChevronDownIcon class="h-4 w-4 text-green-500" />
                             </div>
                         </div>
 
                         <!-- Generic Name Dropdown -->
                         <div class="relative">
                             <select v-model="advancedSearch.generic_name" @change="applyAdvancedSearch"
-                                class="pl-3 pr-8 py-2 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500 appearance-none">
+                                class="pl-4 pr-10 py-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 appearance-none bg-white min-w-[140px]">
                                 <option value="">All Generics</option>
                                 <option v-for="generic in uniqueGenericNames" :key="generic" :value="generic">
                                     {{ generic }}
                                 </option>
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                                <ChevronDownIcon class="h-4 w-4 text-gray-400" />
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                <ChevronDownIcon class="h-4 w-4 text-green-500" />
                             </div>
                         </div>
 
                         <!-- Barangay Dropdown -->
                         <div class="relative">
                             <select v-model="advancedSearch.barangay" @change="applyAdvancedSearch"
-                                class="pl-3 pr-8 py-2 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500 appearance-none">
+                                class="pl-4 pr-10 py-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 appearance-none bg-white min-w-[140px]">
                                 <option value="">All Barangays</option>
                                 <option v-for="barangay in uniqueBarangays" :key="barangay" :value="barangay">
                                     {{ barangay }}
                                 </option>
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                                <ChevronDownIcon class="h-4 w-4 text-gray-400" />
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                <ChevronDownIcon class="h-4 w-4 text-green-500" />
                             </div>
                         </div>
 
                         <!-- Advanced Search Button -->
                         <button @click="showAdvancedSearchModal = true"
-                            class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md flex items-center">
+                            class="px-4 py-3 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg flex items-center transition">
                             <FilterIcon class="w-4 h-4 mr-2" />
                             Advanced
                         </button>
 
                         <!-- Clear Filters Button (only shown when filters are active) -->
                         <button v-if="hasActiveFilters" @click="clearAllFilters"
-                            class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-md flex items-center">
+                            class="px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg flex items-center transition">
                             <XIcon class="w-4 h-4 mr-2" />
                             Clear
                         </button>
 
-                        
-                    <button @click="showModalFilteredPdf = true"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                        Generate Filtered PDF
-                    </button>
-                
+                        <!-- Generate PDF Button -->
+                        <button @click="openPdfModal"
+                            class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center transition shadow-md hover:shadow-lg transform hover:scale-105">
+                            <FileText class="w-4 h-4 mr-2" />
+                            Generate PDF
+                        </button>
                     </div>
                 </div>
 
                 <!-- Active filters display -->
-                <div v-if="hasActiveFilters" class="mt-3 flex flex-wrap gap-2">
-                    <div v-if="searchQuery" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                <div v-if="hasActiveFilters" class="mt-4 flex flex-wrap gap-2">
+                    <div v-if="searchQuery" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Search: {{ searchQuery }}
-                        <button @click="searchQuery = ''" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="searchQuery = ''" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="advancedSearch.barangay" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                    <div v-if="advancedSearch.barangay" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Barangay: {{ advancedSearch.barangay }}
-                        <button @click="advancedSearch.barangay = ''; applyAdvancedSearch()" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="advancedSearch.barangay = ''; applyAdvancedSearch()" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="advancedSearch.gender" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                    <div v-if="advancedSearch.gender" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Gender: {{ advancedSearch.gender }}
-                        <button @click="advancedSearch.gender = ''; applyAdvancedSearch()" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="advancedSearch.gender = ''; applyAdvancedSearch()" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="advancedSearch.month" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                    <div v-if="advancedSearch.month" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Month: {{ getMonthName(advancedSearch.month) }}
-                        <button @click="advancedSearch.month = ''; applyAdvancedSearch()" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="advancedSearch.month = ''; applyAdvancedSearch()" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="advancedSearch.year" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                    <div v-if="advancedSearch.year" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Year: {{ advancedSearch.year }}
-                        <button @click="advancedSearch.year = ''; applyAdvancedSearch()" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="advancedSearch.year = ''; applyAdvancedSearch()" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="advancedSearch.brand_name" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                    <div v-if="advancedSearch.brand_name" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Brand: {{ advancedSearch.brand_name }}
-                        <button @click="advancedSearch.brand_name = ''; applyAdvancedSearch()" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="advancedSearch.brand_name = ''; applyAdvancedSearch()" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
-                    <div v-if="advancedSearch.generic_name" class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs flex items-center">
+                    <div v-if="advancedSearch.generic_name" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center border border-green-200">
                         Generic: {{ advancedSearch.generic_name }}
-                        <button @click="advancedSearch.generic_name = ''; applyAdvancedSearch()" class="ml-1 text-emerald-500 hover:text-emerald-700">
+                        <button @click="advancedSearch.generic_name = ''; applyAdvancedSearch()" class="ml-2 text-green-600 hover:text-green-800">
                             <XIcon class="w-3 h-3" />
                         </button>
                     </div>
                 </div>
-
-                <!-- Div wrapping the Button -->
-               
             </div>
 
             <!-- Recipients Table -->
-            <div class="bg-white rounded-lg shadow-sm overflow-hidden mx-0">
+            <div class="bg-white rounded-xl shadow-sm border border-green-100 overflow-hidden mx-4">
                 <div class="overflow-x-auto w-full">
-                    <table class="w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                    <table class="w-full divide-y divide-green-100">
+                        <thead class="bg-green-50">
                             <tr>
                                 <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Recipient
+                                    class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <div class="flex items-center gap-2">
+                                        <Users class="h-4 w-4" />
+                                        Recipient
+                                    </div>
                                 </th>
                                 <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     Gender
                                 </th>
                                 <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Age
+                                    class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    <div class="flex items-center gap-2">
+                                        <Calendar class="h-4 w-4" />
+                                        Age
+                                    </div>
                                 </th>
                                 <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     Barangay
                                 </th>
                                 <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Distributions
+                                    class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    Medicine Distributions
                                 </th>
                                 <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     Actions
                                 </th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white divide-y divide-green-50">
                             <template v-if="recipientsData.length">
                                 <tr v-for="recipient in recipientsData" :key="recipient.id"
-                                    class="hover:bg-gray-50">
+                                    class="hover:bg-green-25 transition-colors duration-200">
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="font-medium text-gray-900">{{ recipient.full_name }}</div>
+                                        <div class="font-semibold text-gray-900">{{ recipient.full_name }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="font-medium text-gray-900">{{ recipient.gender }}</div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                            :class="recipient.gender === 'male' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'">
+                                            {{ recipient.gender }}
+                                        </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-500">
-                                            {{ calculateAge(recipient.birthdate) }} years
-                                            <div class="text-xs text-gray-400">
+                                        <div class="text-sm text-gray-700 font-medium">
+                                            {{ calculateAge(recipient.birthdate) }} years old
+                                            <div class="text-xs text-gray-500">
                                                 Born: {{ formatDate(recipient.birthdate) }}
                                             </div>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-500">{{ recipient.barangay }}</div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                            {{ recipient.barangay }}
+                                        </span>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div v-if="recipient.distributions && recipient.distributions.length" class="space-y-2">
+                                        <div v-if="recipient.distributions && recipient.distributions.length" class="space-y-3">
                                             <!-- Most recent medicine display -->
-                                            <div v-if="getMostRecentDistribution(recipient.distributions)" class="mb-2">
-                                                <div class="flex items-center p-2 rounded-md text-sm" :class="{
-                                                    'bg-emerald-50 border border-emerald-200': isRecentDistribution(getMostRecentDistribution(recipient.distributions)!.date_given),
-                                                    'bg-gray-50 border border-gray-200': !isRecentDistribution(getMostRecentDistribution(recipient.distributions)!.date_given)
+                                            <div v-if="getMostRecentDistribution(recipient.distributions)" class="mb-3">
+                                                <div class="flex items-center p-3 rounded-lg text-sm border-2" :class="{
+                                                    'bg-green-50 border-green-200': isRecentDistribution(getMostRecentDistribution(recipient.distributions)!.date_given),
+                                                    'bg-gray-50 border-gray-200': !isRecentDistribution(getMostRecentDistribution(recipient.distributions)!.date_given)
                                                 }">
-                                                    <div class="mr-2">
-                                                        <ClockIcon class="w-4 h-4 text-emerald-500" />
+                                                    <div class="mr-3">
+                                                        <ClockIcon class="w-5 h-5 text-green-600" />
                                                     </div>
                                                     <div class="flex-1">
-                                                        <div class="font-medium">
+                                                        <div class="font-semibold text-gray-900">
                                                             Latest: {{
                                                                 getMostRecentDistribution(recipient.distributions)!.distribution.inventory.brand_name
                                                             }} {{
                                                                 getMostRecentDistribution(recipient.distributions)!.distribution.inventory.generic_name
                                                             }} 
-                                                            <span class="text-xs font-normal text-gray-500">
-                                                                ({{
+                                                            <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                                {{
                                                                     getMostRecentDistribution(recipient.distributions)!.distribution.inventory.lot_number
-                                                                }})
+                                                                }}
                                                             </span>
                                                         </div>
-                                                        <div class="text-xs text-gray-500">
+                                                        <div class="text-xs text-gray-600 mt-1">
                                                             Qty: {{
                                                                 getMostRecentDistribution(recipient.distributions)!.quantity
                                                             }} •
@@ -755,7 +857,7 @@ const goToPage = (url: string | null) => {
                                                     </div>
                                                     <button
                                                         @click.stop="openUpdateModal(getMostRecentDistribution(recipient.distributions)!)"
-                                                        class="p-1 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-full">
+                                                        class="p-2 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition">
                                                         <PencilIcon class="w-4 h-4" />
                                                     </button>
                                                 </div>
@@ -763,62 +865,64 @@ const goToPage = (url: string | null) => {
 
                                             <!-- Dropdown header with count of unique medicines -->
                                             <div @click="toggleDistributions(recipient.id)"
-                                                class="flex items-center justify-between p-2 bg-gray-100 rounded-md text-sm cursor-pointer hover:bg-gray-200">
-                                                <div class="font-medium uppercase">
+                                                class="flex items-center justify-between p-3 bg-green-100 rounded-lg text-sm cursor-pointer hover:bg-green-200 transition border border-green-200">
+                                                <div class="font-semibold text-green-800 uppercase">
                                                     ALL MEDICINES RECEIVED ({{
                                                         countAllMedicinesReceived(recipient.distributions) }})
                                                 </div>
 
                                                 <div class="flex items-center">
-                                                    <ChevronDownIcon class="w-4 h-4 transition-transform"
+                                                    <ChevronDownIcon class="w-5 h-5 transition-transform text-green-600"
                                                         :class="{ 'transform rotate-180': isExpanded(recipient.id) }" />
                                                 </div>
                                             </div>
 
                                             <!-- Expanded distributions list -->
                                             <div v-if="isExpanded(recipient.id)"
-                                                class="space-y-2 pl-2 mt-2 border-l-2 border-emerald-100">
+                                                class="space-y-2 pl-4 mt-3 border-l-4 border-green-200">
                                                 <!-- Medicine counts summary -->
-                                                <div class="px-2 py-1 text-xs text-gray-500 flex flex-wrap gap-2 mb-2">
+                                                <div class="px-3 py-2 text-xs text-gray-600 flex flex-wrap gap-2 mb-3 bg-green-25 rounded-lg">
                                                     <span
                                                         v-for="(count, medicine) in countDistributionsByMedicine(recipient.distributions)"
                                                         :key="medicine"
-                                                        class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">
-                                                        {{ medicine }}: <span class="ml-1 font-medium">{{ count
-                                                            }}</span>
+                                                        class="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-800 border border-green-200">
+                                                        {{ medicine }}: <span class="ml-1 font-semibold">{{ count }}</span>
                                                     </span>
                                                 </div>
 
                                                 <!-- Individual distributions sorted by newest first -->
                                                 <div v-for="dist in sortedDistributions(recipient.distributions)"
                                                     :key="dist.id"
-                                                    class="flex items-center justify-between p-2 bg-gray-50 rounded-md text-sm">
+                                                    class="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm border border-gray-200 hover:bg-gray-100 transition">
                                                     <div>
-                                                        <span class="font-medium">{{
+                                                        <span class="font-semibold text-gray-900">{{
                                                             dist.distribution.inventory.brand_name }} {{
                                                                 dist.distribution.inventory.generic_name }}</span>
-                                                        <span class="text-xs font-normal text-gray-500">
-                                                            ({{
-                                                                dist.distribution.inventory.lot_number }})
+                                                        <span class="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded ml-2">
+                                                            {{
+                                                                dist.distribution.inventory.lot_number }}
                                                         </span>
-                                                        <div class="text-xs text-gray-500">
+                                                        <div class="text-xs text-gray-600 mt-1">
                                                             Qty: {{ dist.quantity }} • Given: {{
                                                                 formatDate(dist.date_given) }}
                                                         </div>
                                                     </div>
                                                     <button @click.stop="openUpdateModal(dist)"
-                                                        class="p-1 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-full">
+                                                        class="p-2 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition">
                                                         <PencilIcon class="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div v-else class="text-sm text-gray-500 italic">
-                                            No distributions yet
+                                        <div v-else class="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                            <div class="flex items-center justify-center">
+                                                <FileText class="h-8 w-8 text-gray-300 mr-2" />
+                                                No distributions yet
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button class="text-emerald-600 hover:text-emerald-900 mr-3"
+                                        <button class="text-green-600 hover:text-green-800 hover:bg-green-100 px-3 py-2 rounded-lg transition"
                                             @click="openAddMedicineModal(recipient)">
                                             Add Medicine
                                         </button>
@@ -826,11 +930,11 @@ const goToPage = (url: string | null) => {
                                 </tr>
                             </template>
                             <tr v-else>
-                                <td colspan="6" class="px-6 py-10 text-center text-gray-500">
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                                     <div class="flex flex-col items-center justify-center">
-                                        <div class="w-24 h-24 text-gray-200 mb-4"></div>
-                                        <p class="text-lg font-medium">No recipients found</p>
-                                        <p class="text-sm">Try adjusting your search or add a new recipient</p>
+                                        <Users class="w-16 h-16 text-green-200 mb-4" />
+                                        <p class="text-lg font-medium text-gray-700">No recipients found</p>
+                                        <p class="text-sm text-gray-500">Try adjusting your search criteria or add a new recipient</p>
                                     </div>
                                 </td>
                             </tr>
@@ -839,16 +943,16 @@ const goToPage = (url: string | null) => {
                 </div>
                 
                 <!-- Pagination -->
-                <div v-if="props.recipients.links && props.recipients.links.length > 3" class="px-6 py-4 border-t">
+                <div v-if="props.recipients.links && props.recipients.links.length > 3" class="px-6 py-4 border-t border-green-100 bg-green-25">
                     <div class="flex items-center justify-between">
-                        <div class="text-sm text-gray-500">
+                        <div class="text-sm text-green-700">
                             Showing {{ props.recipients.from || 0 }} to {{ props.recipients.to || 0 }} of {{ props.recipients.total || 0 }} recipients
                         </div>
-                        <div class="flex space-x-1">
+                        <div class="flex space-x-2">
                             <button 
                                 v-if="props.recipients.prev_page_url"
                                 @click="goToPage(props.recipients.prev_page_url)"
-                                class="px-3 py-1 rounded border text-sm hover:bg-gray-50"
+                                class="px-3 py-2 rounded-lg border border-green-200 text-sm hover:bg-green-100 transition"
                             >
                                 Previous
                             </button>
@@ -857,8 +961,8 @@ const goToPage = (url: string | null) => {
                                 <button 
                                     v-if="i > 0 && i < props.recipients.links.length - 1"
                                     @click="goToPage(link.url)"
-                                    class="px-3 py-1 rounded border text-sm"
-                                    :class="link.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'hover:bg-gray-50'"
+                                    class="px-3 py-2 rounded-lg border text-sm transition"
+                                    :class="link.active ? 'bg-green-600 text-white border-green-600' : 'border-green-200 hover:bg-green-100'"
                                 >
                                     {{ link.label }}
                                 </button>
@@ -867,7 +971,7 @@ const goToPage = (url: string | null) => {
                             <button 
                                 v-if="props.recipients.next_page_url"
                                 @click="goToPage(props.recipients.next_page_url)"
-                                class="px-3 py-1 rounded border text-sm hover:bg-gray-50"
+                                class="px-3 py-2 rounded-lg border border-green-200 text-sm hover:bg-green-100 transition"
                             >
                                 Next
                             </button>
@@ -879,22 +983,21 @@ const goToPage = (url: string | null) => {
 
         <!-- Advanced Search Modal -->
         <div v-if="showAdvancedSearchModal"
-            class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-            <div
-                class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-6 rounded-lg shadow-lg w-full max-w-md">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold">Advanced Search</h3>
+            class="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+            <div class="bg-white text-gray-900 p-8 rounded-xl shadow-2xl w-full max-w-md mx-4 border border-green-100">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-green-800">Advanced Search</h3>
                     <button @click="showAdvancedSearchModal = false" class="text-gray-500 hover:text-gray-700">
-                        <XIcon class="w-5 h-5" />
+                        <XIcon class="w-6 h-6" />
                     </button>
                 </div>
 
                 <div class="space-y-4">
-                    <!-- Brand Name Filter -->
+                    <!-- Lot Number Filter -->
                     <div>
-                        <label for="lotNumberSearch" class="block text-sm font-medium mb-1">Lot Number</label>
+                        <label for="lotNumberSearch" class="block text-sm font-semibold text-green-700 mb-2">Lot Number</label>
                         <select v-model="advancedSearch.lot_number" id="lotNumberSearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Lot Numbers</option>
                             <option v-for="lotNumber in uniqueLotNumbers" :key="lotNumber" :value="lotNumber">
                                 {{ lotNumber }}
@@ -902,10 +1005,11 @@ const goToPage = (url: string | null) => {
                         </select>
                     </div>
 
+                    <!-- Brand Name Filter -->
                     <div>
-                        <label for="brandNameSearch" class="block text-sm font-medium mb-1">Brand Name</label>
+                        <label for="brandNameSearch" class="block text-sm font-semibold text-green-700 mb-2">Brand Name</label>
                         <select v-model="advancedSearch.brand_name" id="brandNameSearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Brands</option>
                             <option v-for="brand in uniqueBrandNames" :key="brand" :value="brand">
                                 {{ brand }}
@@ -915,9 +1019,9 @@ const goToPage = (url: string | null) => {
 
                     <!-- Generic Name Filter -->
                     <div>
-                        <label for="genericNameSearch" class="block text-sm font-medium mb-1">Generic Name</label>
+                        <label for="genericNameSearch" class="block text-sm font-semibold text-green-700 mb-2">Generic Name</label>
                         <select v-model="advancedSearch.generic_name" id="genericNameSearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Generics</option>
                             <option v-for="generic in uniqueGenericNames" :key="generic" :value="generic">
                                 {{ generic }}
@@ -927,9 +1031,9 @@ const goToPage = (url: string | null) => {
 
                     <!-- Barangay Filter -->
                     <div>
-                        <label for="barangaySearch" class="block text-sm font-medium mb-1">Barangay</label>
+                        <label for="barangaySearch" class="block text-sm font-semibold text-green-700 mb-2">Barangay</label>
                         <select v-model="advancedSearch.barangay" id="barangaySearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Barangays</option>
                             <option v-for="barangay in uniqueBarangays" :key="barangay" :value="barangay">
                                 {{ barangay }}
@@ -939,9 +1043,9 @@ const goToPage = (url: string | null) => {
 
                     <!-- Gender Filter -->
                     <div>
-                        <label for="genderSearch" class="block text-sm font-medium mb-1">Gender</label>
+                        <label for="genderSearch" class="block text-sm font-semibold text-green-700 mb-2">Gender</label>
                         <select v-model="advancedSearch.gender" id="genderSearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Genders</option>
                             <option value="male">Male</option>
                             <option value="female">Female</option>
@@ -950,9 +1054,9 @@ const goToPage = (url: string | null) => {
 
                     <!-- Month Filter -->
                     <div>
-                        <label for="monthSearch" class="block text-sm font-medium mb-1">Month</label>
+                        <label for="monthSearch" class="block text-sm font-semibold text-green-700 mb-2">Month</label>
                         <select v-model="advancedSearch.month" id="monthSearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Months</option>
                             <option value="1">January</option>
                             <option value="2">February</option>
@@ -971,125 +1075,154 @@ const goToPage = (url: string | null) => {
 
                     <!-- Year Filter -->
                     <div>
-                        <label for="yearSearch" class="block text-sm font-medium mb-1">Year</label>
+                        <label for="yearSearch" class="block text-sm font-semibold text-green-700 mb-2">Year</label>
                         <select v-model="advancedSearch.year" id="yearSearch"
-                            class="w-full p-2 border rounded focus:ring focus:ring-emerald-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
                             <option value="">All Years</option>
                             <option v-for="year in years" :key="year" :value="year">{{ year }}</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-2 mt-6">
+                <div class="flex justify-end gap-3 mt-8">
                     <button @click="clearAllFilters"
-                        class="px-4 py-2 text-gray-700 dark:text-gray-300 border rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                        class="px-6 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         Clear All
                     </button>
                     <button @click="applyAdvancedSearch"
-                        class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700">
+                        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md hover:shadow-lg transform hover:scale-105">
                         Apply Filters
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Modal for Filtered PDF Generation -->
+        <!-- Enhanced Modal for Filtered PDF Generation -->
         <div v-if="showModalFilteredPdf"
-            class="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div
-                class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-6 rounded-lg shadow-lg w-full max-w-md">
-                <h3 class="text-lg font-semibold mb-4">Generate Filtered Distribution Report</h3>
-
-                <!-- Medicine Filter -->
-                <label for="medicineInput" class="block text-sm font-medium mb-1">Medicine (Brand/Generic)</label>
-                <input v-model="filterMedicine" id="medicineInput" type="text" placeholder="e.g., Paracetamol"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-
-                <!-- Brand Name Filter -->
-                <label for="brandNameInput" class="block text-sm font-medium mb-1">Brand Name</label>
-                <select v-model="filterBrandName" id="brandNameInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Brands</option>
-                    <option v-for="brand in uniqueBrandNames" :key="brand" :value="brand">
-                        {{ brand }}
-                    </option>
-                </select>
-
-                <!-- Generic Name Filter -->
-                <label for="genericNameInput" class="block text-sm font-medium mb-1">Generic Name</label>
-                <select v-model="filterGenericName" id="genericNameInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Generics</option>
-                    <option v-for="generic in uniqueGenericNames" :key="generic" :value="generic">
-                        {{ generic }}
-                    </option>
-                </select>
-
-                <!-- Lot Number Filter -->
-                <label for="lotNumberInput" class="block text-sm font-medium mb-1">Lot Number</label>
-                <select v-model="filterLotNumber" id="lotNumberInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Lot Numbers</option>
-                    <option v-for="lotNumber in uniqueLotNumbers" :key="lotNumber" :value="lotNumber">
-                        {{ lotNumber }}
-                    </option>
-                </select>
-
-                <!-- Barangay Filter -->
-                <label for="barangayInput" class="block text-sm font-medium mb-1">Barangay</label>
-                <select v-model="filterBarangay" id="barangayInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Barangays</option>
-                    <option v-for="barangay in uniqueBarangays" :key="barangay" :value="barangay">
-                        {{ barangay }}
-                    </option>
-                </select>
-
-                <!-- Gender Filter -->
-                <label for="genderInput" class="block text-sm font-medium mb-1">Gender</label>
-                <select v-model="filterGender" id="genderInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Genders</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                </select>
-
-                <!-- Month Filter -->
-                <label for="monthInput" class="block text-sm font-medium mb-1">Month</label>
-                <select v-model="filterMonth" id="monthInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Months</option>
-                    <option value="1">January</option>
-                    <option value="2">February</option>
-                    <option value="3">March</option>
-                    <option value="4">April</option>
-                    <option value="5">May</option>
-                    <option value="6">June</option>
-                    <option value="7">July</option>
-                    <option value="8">August</option>
-                    <option value="9">September</option>
-                    <option value="10">October</option>
-                    <option value="11">November</option>
-                    <option value="12">December</option>
-                </select>
-
-                <!-- Year Filter -->
-                <label for="yearInput" class="block text-sm font-medium mb-1">Year</label>
-                <select v-model="filterYear" id="yearInput"
-                    class="w-full p-2 mb-4 border rounded focus:ring focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">All Years</option>
-                    <option v-for="year in years" :key="year" :value="year">{{ year }}</option>
-                </select>
-
-                <div class="flex justify-end gap-2">
-                    <button @click="showModalFilteredPdf = false"
-                        class="px-4 py-2 text-gray-700 dark:text-gray-300 border rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                        Cancel
+            class="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+            <div class="bg-white text-gray-900 p-8 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4 border border-green-100">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-green-800">Generate Distribution Report</h3>
+                    <button @click="showModalFilteredPdf = false" 
+                        class="text-gray-500 hover:text-gray-700">
+                        <XIcon class="w-6 h-6" />
                     </button>
-                    <button @click="generateFilteredPdf"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                        Generate PDF
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Brand Name Filter -->
+                    <div>
+                        <label for="pdfBrandName" class="block text-sm font-semibold text-green-700 mb-2">Brand Name</label>
+                        <select v-model="filterBrandName" id="pdfBrandName"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                            <option value="">All Brands</option>
+                            <option v-for="brand in uniqueBrandNames" :key="brand" :value="brand">
+                                {{ brand }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Generic Name Filter -->
+                    <div>
+                        <label for="pdfGenericName" class="block text-sm font-semibold text-green-700 mb-2">Generic Name</label>
+                        <select v-model="filterGenericName" id="pdfGenericName"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                            <option value="">All Generics</option>
+                            <option v-for="generic in uniqueGenericNames" :key="generic" :value="generic">
+                                {{ generic }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Lot Number Filter -->
+                    <div>
+                        <label for="pdfLotNumber" class="block text-sm font-semibold text-green-700 mb-2">Lot Number</label>
+                        <select v-model="filterLotNumber" id="pdfLotNumber"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                            <option value="">All Lot Numbers</option>
+                            <option v-for="lotNumber in uniqueLotNumbers" :key="lotNumber" :value="lotNumber">
+                                {{ lotNumber }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Barangay Filter -->
+                    <div>
+                        <label for="pdfBarangay" class="block text-sm font-semibold text-green-700 mb-2">Barangay</label>
+                        <select v-model="filterBarangay" id="pdfBarangay"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                            <option value="">All Barangays</option>
+                            <option v-for="barangay in uniqueBarangays" :key="barangay" :value="barangay">
+                                {{ barangay }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Gender Filter -->
+                    <div>
+                        <label for="pdfGender" class="block text-sm font-semibold text-green-700 mb-2">Gender</label>
+                        <select v-model="filterGender" id="pdfGender"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                            <option value="">All Genders</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+
+                    <!-- Year Filter -->
+                    <div>
+                        <label for="pdfYear" class="block text-sm font-semibold text-green-700 mb-2">Year</label>
+                        <select v-model="filterYear" id="pdfYear"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+                            <option value="">All Years</option>
+                            <option v-for="year in years" :key="year" :value="year">{{ year }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Month Filter (Dynamic based on selected year) -->
+                    <div>
+                        <label for="pdfMonth" class="block text-sm font-semibold text-green-700 mb-2">
+                            Month
+                            <span v-if="isLoadingMonths" class="text-xs text-green-600">(Loading...)</span>
+                        </label>
+                        <select v-model="filterMonth" id="pdfMonth"
+                            :disabled="!filterYear || isLoadingMonths"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                            <option value="">All Months</option>
+                            <option v-if="!filterYear" disabled>Select a year first</option>
+                            <option v-for="month in availableMonths" :key="month" :value="month">
+                                {{ monthNames[month - 1] }}
+                            </option>
+                        </select>
+                        <p v-if="filterYear && availableMonths.length === 0 && !isLoadingMonths" 
+                           class="text-xs text-green-600 mt-1">
+                            No data available for {{ filterYear }}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-between gap-3 mt-8">
+                    <button @click="clearPdfFilters"
+                        class="px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        Clear Filters
                     </button>
+                    
+                    <div class="flex gap-3">
+                        <button @click="showModalFilteredPdf = false"
+                            class="px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                            Cancel
+                        </button>
+                        <button @click="generateFilteredPdf"
+                            :disabled="isGeneratingPdf"
+                            class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg transform hover:scale-105 flex items-center">
+                            <svg v-if="isGeneratingPdf" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ isGeneratingPdf ? 'Generating...' : 'Generate PDF' }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1105,3 +1238,13 @@ const goToPage = (url: string | null) => {
             @close="showAddMedicineModal = false" />
     </AppLayout>
 </template>
+
+<style scoped>
+.hover\:bg-green-25:hover {
+    background-color: #f0fdf4;
+}
+
+.bg-green-25 {
+    background-color: #f0fdf4;
+}
+</style>
