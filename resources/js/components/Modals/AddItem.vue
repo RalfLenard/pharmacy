@@ -75,9 +75,10 @@ const handleSubmit = () => {
             <select id="stock-type" v-model="form.stockType" required
               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
               :class="{ 'border-red-500': form.errors.stockType }">
-              <option value="Stock Room">Stock Room</option>
+              <option value="LGU Procured">LGU Procured</option>
               <option value="DOH">DOH</option>
               <option value="Trust Funds">Trust Funds</option>
+              <option value="Donations">Donations</option>
             </select>
             <p v-if="form.errors.stockType" class="mt-1 text-sm text-red-600">{{ form.errors.stockType }}</p>
           </div>
