@@ -80,6 +80,7 @@ class DistributingController extends Controller
                     'quantity' => $request->quantity,
                     'remarks' => $request->remarks,
                     'stocks' => $request->quantity,
+                    'reason' => $request->reason,
                 ]);
             }
     

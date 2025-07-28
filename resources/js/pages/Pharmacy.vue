@@ -21,6 +21,7 @@ interface DistributionItem {
     quantity: number;
     stocks: number;
     remarks: string;
+    reason: string;
     inventory: InventoryItem;
     created_at: string;
 }
@@ -454,7 +455,11 @@ onMounted(() => {
                                     </th>
                                     <th
                                         class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
-                                        Remarks
+                                        Particular/Destination
+                                    </th>
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                        Reasons
                                     </th>
                                     <th
                                         class="px-6 py-4 text-center text-xs font-semibold text-green-800 uppercase tracking-wider">
@@ -492,6 +497,7 @@ onMounted(() => {
                                             {{ item.remarks || '-' }}
                                         </span>
                                     </td>
+                                    <td class="px-6 py-4 text-sm font-semibold text-gray-700">{{ item.reason }}</td>
                                     <td class="px-6 py-4 text-center">
                                         <button @click="deleteItem(item)"
                                             class="text-red-600 hover:text-red-800 hover:bg-red-100 p-2 rounded-lg transition"

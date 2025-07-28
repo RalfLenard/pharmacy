@@ -44,7 +44,7 @@
 
                     <!-- Remarks Field -->
                     <div class="sm:col-span-2">
-                        <label for="remarks" class="mb-1 block text-sm font-medium">Remarks</label>
+                        <label for="remarks" class="mb-1 block text-sm font-medium">Particular/Destination</label>
                         <select
                             id="remarks"
                             v-model="form.remarks"
@@ -96,6 +96,19 @@
                             />
                         </div>
                     </div>
+
+                    <!-- Reasons -->
+                    <div class="sm:col-span-2">
+                        <label for="reason" class="mb-1 block text-sm font-medium">Reasons</label>
+                        <input
+                            id="reason"
+                            type="text"
+                            v-model="form.reason"
+                            min="1"
+                            required
+                           class="focus:ring-primary focus:border-primary w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:ring-2"
+                        />
+                    </div>
                 </div>
 
                 <!-- Buttons -->
@@ -136,6 +149,7 @@ const form = useForm({
   quantity: 0,
   date_distribute: '',
   remarks: '',
+  reason: '',
 });
 
 // For custom remarks
@@ -148,6 +162,7 @@ watch(() => props.item, (item) => {
     form.quantity = 0;
     form.date_distribute = '';
     form.remarks = '';
+    form.reason = '';
     otherRemarks.value = '';
   }
 }, { immediate: true });

@@ -75,6 +75,7 @@
                 <th>Expiration Date</th>
                 <th>Quantity</th>
                 <th>Date Distributed</th>
+                <th>Reasons</th>
             </tr>
         </thead>
         <tbody>
@@ -90,6 +91,7 @@
                     <td>{{ \Carbon\Carbon::parse($distribution->inventory->expiration_date)->format('M d, Y') }}</td>
                     <td>{{ $distribution->quantity }}</td>
                     <td>{{ \Carbon\Carbon::parse($distribution->date_distribute)->format('Y-m-d') }}</td>
+                   
                 </tr>
             @endforeach
         </tbody>

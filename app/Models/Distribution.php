@@ -15,6 +15,7 @@ class Distribution extends Model
         'quantity',
         'remarks',
         'stocks',
+        'reason'
     ];
 
     public function inventory()
