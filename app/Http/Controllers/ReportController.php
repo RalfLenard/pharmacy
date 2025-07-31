@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GeneratedReport;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 use App\Models\Distribution;
@@ -89,7 +91,8 @@ class ReportController extends Controller
             $lot_number = $request->input('lot_number');
             $month = $request->input('month');
             $year = $request->input('year');
-            $stock_type = $request->input('stock_type'); // ✅ NEW
+            $stock_type = $request->input('stock_type');
+            $date = $request->input('date');
 
             $query = Inventory::query();
 
@@ -97,29 +100,48 @@ class ReportController extends Controller
                 $query->where('lot_number', $lot_number);
             }
 
-            if ($month && $year) {
+            if ($date) {
+                $query->whereDate('date_in', $date);
+            } elseif ($month && $year) {
                 $query->whereMonth('date_in', $month)
                     ->whereYear('date_in', $year);
             } elseif ($year) {
                 $query->whereYear('date_in', $year);
             }
 
-            if ($stock_type) { // ✅ NEW filter
+            if ($stock_type) {
                 $query->where('stock_type', $stock_type);
             }
 
             $inventories = $query->orderBy('date_in', 'desc')->get();
 
             if ($inventories->isEmpty()) {
-                return back()->with('error', 'No inventory found for the specified filters.');
+                // ✅ Specific message if date was provided
+                if ($date) {
+                    return back()->with('error', 'No inventory records found for ' . Carbon::parse($date)->format('F j, Y') . '.');
+                } elseif ($month && $year) {
+                    return back()->with('error', 'No inventory records found for ' . Carbon::create()->month($month)->format('F') . " $year.");
+                } elseif ($year) {
+                    return back()->with('error', "No inventory records found for $year.");
+                } elseif ($lot_number) {
+                    return back()->with('error', "No inventory found for Lot #$lot_number.");
+                }
+
+                return back()->with('error', 'No inventory found matching the provided filters.');
             }
 
-            // Build report title
             $title = 'Inventory Report';
-            if ($stock_type) $title .= " - $stock_type"; // ✅ NEW
-            if ($lot_number) $title .= " - Lot #$lot_number";
-            if ($month && $year) $title .= " for " . Carbon::create()->month($month)->format('F') . " $year";
-            elseif ($year) $title .= " for $year";
+            if ($stock_type)
+                $title .= " - $stock_type";
+            if ($lot_number)
+                $title .= " - Lot #$lot_number";
+            if ($date) {
+                $title .= " for " . Carbon::parse($date)->format('F j, Y');
+            } elseif ($month && $year) {
+                $title .= " for " . Carbon::create()->month($month)->format('F') . " $year";
+            } elseif ($year) {
+                $title .= " for $year";
+            }
 
             $html = View::make('inventoryPdf', compact('inventories', 'title'))->render();
 
@@ -136,137 +158,172 @@ class ReportController extends Controller
                 'Content-Disposition' => 'inline; filename="inventory_report.pdf"',
             ]);
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
+            \Log::error('PDF Generation Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'An unexpected error occurred while generating the PDF report. Please contact the administrator.');
         }
     }
 
     public function checkInventoryLot(Request $request)
     {
-        $lot_number = $request->input('lot_number');
-        $month = $request->input('month'); // optional
-        $year = $request->input('year');   // optional
-        $stock_type = $request->input('stock_type'); // ✅ NEW
+        try {
+            $lot_number = $request->input('lot_number');
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $stock_type = $request->input('stock_type');
+            $date = $request->input('date');
 
-        $query = Inventory::query();
+            $query = Inventory::query();
 
-        if ($lot_number) {
-            $query->where('lot_number', $lot_number);
+            if ($lot_number) {
+                $query->where('lot_number', $lot_number);
+            }
+
+            if ($stock_type) {
+                $query->where('stock_type', $stock_type);
+            }
+
+            if ($date) {
+                $query->whereDate('date_in', $date);
+            } elseif ($month && $year) {
+                $query->whereMonth('date_in', $month)
+                    ->whereYear('date_in', $year);
+            } elseif ($year) {
+                $query->whereYear('date_in', $year);
+            }
+
+            $exists = $query->exists();
+
+            if (!$exists) {
+                $message = 'No inventory match found';
+                if ($date) {
+                    $message .= ' for ' . Carbon::parse($date)->format('F j, Y');
+                } elseif ($month && $year) {
+                    $message .= ' for ' . Carbon::create()->month($month)->format('F') . " $year";
+                } elseif ($year) {
+                    $message .= " for $year";
+                } elseif ($lot_number) {
+                    $message .= " for Lot #$lot_number";
+                }
+
+                return response()->json([
+                    'exists' => false,
+                    'message' => $message . '.',
+                ]);
+            }
+
+            return response()->json(['exists' => true]);
+        } catch (\Exception $e) {
+            \Log::error('Inventory Check Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'An error occurred while checking the inventory. Please try again later.'], 500);
         }
-
-        if ($stock_type) { // ✅ NEW filter
-            $query->where('stock_type', $stock_type);
-        }
-
-        if ($month && $year) {
-            $query->whereMonth('date_in', $month)
-                ->whereYear('date_in', $year);
-        } elseif ($year) {
-            $query->whereYear('date_in', $year);
-        }
-
-        $exists = $query->exists();
-
-        return response()->json(['exists' => $exists]);
     }
+
 
 
 
     public function generateByRemarks(Request $request, $remarks = null)
     {
         try {
-            // Get query parameters
             $stockType = $request->query('stock_type');
-            $month     = $request->query('month');
-            $year      = $request->query('year');
+            $month = $request->query('month');
+            $year = $request->query('year');
+            $exactDate = $request->query('date');
     
-            // Sanitize and validate month/year
             $month = !empty($month) ? (int) $month : null;
-            $year  = !empty($year) ? (int) $year : null;
+            $year = !empty($year) ? (int) $year : null;
     
-            // Base query with inventory relationship
             $query = Distribution::with('inventory');
     
-            // Remarks filter
             if ($remarks && strtolower($remarks) !== 'all') {
                 $query->where('remarks', $remarks);
             }
     
-            // Filter by stock type (instead of lot number)
             if ($stockType) {
                 $query->whereHas('inventory', function ($q) use ($stockType) {
                     $q->where('stock_type', $stockType);
                 });
             }
     
-            // Date filter
-            if ($month && $year) {
-                if ($month >= 1 && $month <= 12) {
-                    $query->whereMonth('date_distribute', $month)
-                          ->whereYear('date_distribute', $year);
-                }
+            if ($exactDate) {
+                $query->whereDate('date_distribute', $exactDate);
+            } elseif ($month && $year && $month >= 1 && $month <= 12) {
+                $query->whereMonth('date_distribute', $month)
+                      ->whereYear('date_distribute', $year);
             } elseif ($year) {
                 $query->whereYear('date_distribute', $year);
             }
     
-            // Get results
             $distributions = $query->get();
     
             if ($distributions->isEmpty()) {
                 return back()->with('error', 'No distributions found for the selected filters.');
             }
     
-            // Render the view
+            // ✅ Save UUID to DB
+            $reportId = substr((string) Str::uuid(), 0, 8);
+    
+            GeneratedReport::create([
+                'report_id' => $reportId,
+            ]);
+    
+            // ✅ Render Blade view safely
             $html = View::make('distributePdf', [
                 'distributions' => $distributions,
-                'remarks'       => $remarks ?? 'All',
-                'stock_type'    => $stockType ?? 'All',
-                'month'         => $month,
-                'year'          => $year,
+                'remarks' => $remarks ?? 'All',
+                'stock_type' => $stockType ?? 'All',
+                'month' => $month,
+                'year' => $year,
+                'date' => $exactDate,
+                'report_id' => $reportId,
             ])->render();
     
-            // Build file name
             $timestamp = now()->format('Ymd_His');
-            $filename = 'distribution_' .
-                Str::slug($remarks ?? 'all') . '_' .
-                Str::slug($stockType ?? 'all') . '_' .
-                ($month ? $month . '-' . $year : ($year ?? 'all')) . '_' .
-                $timestamp . '.pdf';
     
-            // Generate PDF with Browsershot
+            $filename = 'distribution_' . Str::slug($remarks ?? 'all') . '_' .
+                        Str::slug($stockType ?? 'all') . '_' .
+                        ($exactDate ? Str::slug($exactDate) : ($month ? $month . '-' . $year : ($year ?? 'all'))) .
+                        '_' . $timestamp . '.pdf';
+    
+            // ✅ Convert to PDF
             $pdf = Browsershot::html($html)
-                ->format('A4')
-                ->margins(10, 10, 10, 10)
-                ->showBackground()
-                ->pdf();
+                    ->format('A4')
+                    ->margins(10, 10, 10, 10)
+                    ->showBackground()
+                    ->pdf();
     
-            // Stream the PDF
             return new StreamedResponse(function () use ($pdf) {
                 echo $pdf;
             }, 200, [
-                'Content-Type'        => 'application/pdf',
+                'Content-Type' => 'application/pdf',
                 'Content-Disposition' => 'inline; filename="' . $filename . '"',
             ]);
         } catch (\Exception $e) {
+            // You can log the real error too for debugging:
+            \Log::error('PDF Generation Failed', ['error' => $e->getMessage()]);
             return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
     }
-    
+
 
     public function checkDistributionByRemarks(Request $request)
     {
-        $remarks   = $request->query('remarks');
+        $remarks = $request->query('remarks');
         $stockType = $request->query('stock_type');
-        $month     = $request->query('month');
-        $year      = $request->query('year');
+        $month = $request->query('month');
+        $year = $request->query('year');
+        $exactDate = $request->query('date'); // ✅ NEW
 
-        // Sanitize and validate month/year
         $month = !empty($month) ? (int) $month : null;
-        $year  = !empty($year) ? (int) $year : null;
+        $year = !empty($year) ? (int) $year : null;
 
-        // Start query
         $query = Distribution::query();
 
-        // Apply filters
         if ($remarks && strtolower($remarks) !== 'all') {
             $query->where('remarks', $remarks);
         }
@@ -277,7 +334,9 @@ class ReportController extends Controller
             });
         }
 
-        if ($month && $year) {
+        if ($exactDate) {
+            $query->whereDate('date_distribute', $exactDate);
+        } elseif ($month && $year) {
             if ($month >= 1 && $month <= 12) {
                 $query->whereMonth('date_distribute', $month)
                     ->whereYear('date_distribute', $year);
@@ -288,9 +347,43 @@ class ReportController extends Controller
 
         return response()->json([
             'exists' => $query->exists(),
+            'message' => $query->exists() ? null : 'No distributions found for the given filters.'
         ]);
     }
 
+
+
+    // public function generateFilteredPDF(Request $request)
+    // {
+    //     try {
+    //         $query = RecipientDistribution::with(['recipient', 'distribution.inventory']);
+
+    //         $this->applyCommonFilters($query, $request);
+
+    //         $records = $query->get();
+
+    //         if ($records->isEmpty()) {
+    //             return back()->with('error', 'No records found for the selected filters.');
+    //         }
+
+    //         $html = view('recipientPdf', compact('records', 'request'))->render();
+
+    //         $pdf = Browsershot::html($html)
+    //             ->format('A4')
+    //             ->margins(10, 10, 10, 10)
+    //             ->showBackground()
+    //             ->pdf();
+
+    //         return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($pdf) {
+    //             echo $pdf;
+    //         }, 200, [
+    //             'Content-Type' => 'application/pdf',
+    //             'Content-Disposition' => 'inline; filename="filtered_distribution_' . now()->format('Ymd_His') . '.pdf"',
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         return back()->with('error', 'Failed to generate PDF. Please try again later.');
+    //     }
+    // }
 
     public function generateFilteredPDF(Request $request)
     {
@@ -320,49 +413,104 @@ class ReportController extends Controller
                 'Content-Disposition' => 'inline; filename="filtered_distribution_' . now()->format('Ymd_His') . '.pdf"',
             ]);
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to generate PDF. Please try again later.');
+            return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
     }
+
+
+    // private function applyCommonFilters($query, Request $request)
+    // {
+    //     // Inventory Filters
+    //     if ($request->filled('brand_name')) {
+    //         $query->whereHas('distribution.inventory', fn($q) =>
+    //             $q->where('brand_name', 'like', '%' . $request->brand_name . '%'));
+    //     }
+
+    //     if ($request->filled('generic_name')) {
+    //         $query->whereHas('distribution.inventory', fn($q) =>
+    //             $q->where('generic_name', 'like', '%' . $request->generic_name . '%'));
+    //     }
+
+    //     if ($request->filled('lot_number')) {
+    //         $query->whereHas('distribution.inventory', fn($q) =>
+    //             $q->where('lot_number', 'like', '%' . $request->lot_number . '%'));
+    //     }
+
+    //     // Recipient Filters
+    //     if ($request->filled('barangay')) {
+    //         $query->whereHas('recipient', fn($q) =>
+    //             $q->where('barangay', $request->barangay));
+    //     }
+
+    //     if ($request->filled('gender')) {
+    //         $query->whereHas('recipient', fn($q) =>
+    //             $q->where('gender', $request->gender));
+    //     }
+
+    //     // Date Filters
+    //     $month = $request->filled('month') ? (int) $request->month : null;
+    //     $year = $request->filled('year') ? (int) $request->year : null;
+
+    //     if ($month && $year && $month >= 1 && $month <= 12 && $year > 1900) {
+    //         $query->whereMonth('date_given', $month)
+    //             ->whereYear('date_given', $year);
+    //     }
+    // }
 
     private function applyCommonFilters($query, Request $request)
     {
         // Inventory Filters
         if ($request->filled('brand_name')) {
             $query->whereHas('distribution.inventory', fn($q) =>
-            $q->where('brand_name', 'like', '%' . $request->brand_name . '%'));
+                $q->where('brand_name', 'like', '%' . $request->brand_name . '%'));
         }
 
         if ($request->filled('generic_name')) {
             $query->whereHas('distribution.inventory', fn($q) =>
-            $q->where('generic_name', 'like', '%' . $request->generic_name . '%'));
+                $q->where('generic_name', 'like', '%' . $request->generic_name . '%'));
         }
 
         if ($request->filled('lot_number')) {
             $query->whereHas('distribution.inventory', fn($q) =>
-            $q->where('lot_number', 'like', '%' . $request->lot_number . '%'));
+                $q->where('lot_number', 'like', '%' . $request->lot_number . '%'));
         }
 
         // Recipient Filters
         if ($request->filled('barangay')) {
             $query->whereHas('recipient', fn($q) =>
-            $q->where('barangay', $request->barangay));
+                $q->where('barangay', $request->barangay));
         }
 
         if ($request->filled('gender')) {
             $query->whereHas('recipient', fn($q) =>
-            $q->where('gender', $request->gender));
+                $q->where('gender', $request->gender));
         }
 
         // Date Filters
+        $exactDate = $request->input('date'); // exact date filter (Y-m-d)
         $month = $request->filled('month') ? (int) $request->month : null;
         $year = $request->filled('year') ? (int) $request->year : null;
 
-        if ($month && $year && $month >= 1 && $month <= 12 && $year > 1900) {
+        if ($exactDate) {
+            $query->whereDate('date_given', $exactDate);
+        } elseif ($month && $year && $month >= 1 && $month <= 12 && $year > 1900) {
             $query->whereMonth('date_given', $month)
                 ->whereYear('date_given', $year);
         }
     }
 
+
+
+    // public function checkFilteredPDF(Request $request)
+    // {
+    //     $query = RecipientDistribution::query();
+
+    //     $this->applyCommonFilters($query, $request);
+
+    //     $exists = $query->exists();
+
+    //     return response()->json(['exists' => $exists]);
+    // }
 
     public function checkFilteredPDF(Request $request)
     {
@@ -372,26 +520,30 @@ class ReportController extends Controller
 
         $exists = $query->exists();
 
-        return response()->json(['exists' => $exists]);
+        return response()->json([
+            'exists' => $exists,
+            'message' => $exists ? null : 'No records found for the selected filters.'
+        ]);
     }
+
 
 
     public function getAvailableMonths(Request $request)
     {
         $year = $request->input('year');
-    
+
         $query = RecipientDistribution::query();
-    
+
         if ($year) {
             $query->whereYear('date_given', $year);
         }
-    
+
         $months = $query->selectRaw('DISTINCT MONTH(date_given) as month')
-                        ->orderBy('month')
-                        ->pluck('month');
-    
+            ->orderBy('month')
+            ->pluck('month');
+
         return response()->json(['months' => $months]);
     }
-    
-    
+
+
 }

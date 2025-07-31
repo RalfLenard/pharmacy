@@ -60,6 +60,8 @@ const modalLotNumberValue = ref('');
 const modalMonthValue = ref('');
 const modalYearValue = ref('');
 const modalStockTypeValue = ref('');
+const modalExactDateValue = ref('');
+
 
 
 // Flash message state
@@ -167,12 +169,12 @@ const confirmDelete = async () => {
     }
 };
 
-// PDF generation
 const generateRemarksPdf = async () => {
     const remarks = modalRemarksValue.value.trim();
-    const stockType = modalStockTypeValue.value.trim(); // Updated from lot to stockType
+    const stockType = modalStockTypeValue.value.trim();
     const month = modalMonthValue.value;
     const year = modalYearValue.value;
+    const exactDate = modalExactDateValue.value; // ✅ new date input (e.g., "2025-07-31")
 
     if (!remarks) {
         displayFlash('Please enter a valid remark (or type "all").', 'error');
@@ -183,17 +185,22 @@ const generateRemarksPdf = async () => {
         const response = await axios.get('/reports/distribution/check', {
             params: {
                 remarks: remarks,
-                stock_type: stockType || undefined, // changed key from lot_number to stock_type
-                month: month || undefined,
-                year: year || undefined,
+                stock_type: stockType || undefined,
+                date: exactDate || undefined, // ✅ pass exact date if set
+                month: exactDate ? undefined : (month || undefined), // skip month/year if exactDate is used
+                year: exactDate ? undefined : (year || undefined),
             },
         });
 
         if (response.data.exists) {
             const query = new URLSearchParams();
-            if (stockType) query.append('stock_type', stockType); // changed from lot
-            if (month) query.append('month', month);
-            if (year) query.append('year', year);
+            if (stockType) query.append('stock_type', stockType);
+            if (exactDate) {
+                query.append('date', exactDate); // ✅ exact date
+            } else {
+                if (month) query.append('month', month);
+                if (year) query.append('year', year);
+            }
 
             const queryString = query.toString() ? `?${query.toString()}` : '';
             const remarkEncoded = encodeURIComponent(remarks);
@@ -585,6 +592,20 @@ onMounted(() => {
                         <option value="Donations">Donations</option>
                     </select>
                 </div>
+
+                <!-- Exact Date (Optional) -->
+                <div class="mb-4">
+                    <label for="exactDateInput" class="mb-2 block text-sm font-semibold text-green-700">
+                        Exact Date (Optional)
+                    </label>
+                    <input
+                        id="exactDateInput"
+                        v-model="modalExactDateValue"
+                        type="date"
+                        class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                    />
+                </div>
+
 
 
                 <!-- Month Select -->

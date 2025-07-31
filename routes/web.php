@@ -47,7 +47,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/inventory/report', [ReportController::class, 'generateInventoryReport'])->name('reports.inventory.pdf');
 
-    Route::get('/inventory/check/{lot_number}', [ReportController::class, 'checkInventoryLot'])->name('reports.inventory.check');
+    Route::get('/reports/inventory/check', [ReportController::class, 'checkInventoryLot'])->name('reports.inventory.check');
+
 
    // In routes/web.php
     Route::get('/reports/distribution/remarks/{remarks}', [ReportController::class, 'generateByRemarks'])->name('reports.distribution.generate');

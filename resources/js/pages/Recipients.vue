@@ -89,6 +89,7 @@ const filterYear = ref(props.filters?.year || '');
 const filterLotNumber = ref(props.filters?.lot_number || '');
 const filterBrandName = ref(props.filters?.brand_name || '');
 const filterGenericName = ref(props.filters?.generic_name || '');
+const filterExactDate = ref(''); 
 
 // PDF Generation loading state
 const isGeneratingPdf = ref(false);
@@ -295,16 +296,15 @@ const uniqueBarangays = computed(() => {
     return Array.from(barangays).sort();
 });
 
-// Fixed PDF generation function
+// PDF generation function
 const generateFilteredPdf = async () => {
     if (isGeneratingPdf.value) return;
-    
+
     isGeneratingPdf.value = true;
-    
+
     try {
-        // Build parameters object - only include non-empty values
         const params: Record<string, string> = {};
-        
+
         if (filterBrandName.value.trim()) params.brand_name = filterBrandName.value.trim();
         if (filterGenericName.value.trim()) params.generic_name = filterGenericName.value.trim();
         if (filterLotNumber.value.trim()) params.lot_number = filterLotNumber.value.trim();
@@ -316,24 +316,23 @@ const generateFilteredPdf = async () => {
         if (filterYear.value !== '' && filterYear.value !== null) {
             params.year = String(filterYear.value);
         }
+        if (filterExactDate.value.trim()) {
+            params.date = filterExactDate.value.trim(); // ADD exact date param here
+        }
 
-        // First, check if there are records that match the filters
         const checkResponse = await axios.get('/report/recipient-distributions/check', {
             params: params,
         });
 
         if (checkResponse.data.exists) {
-            // If records exist, proceed to generate PDF
             const queryString = new URLSearchParams(params).toString();
             const pdfUrl = `/report/recipient-distributions/pdf${queryString ? '?' + queryString : ''}`;
-            
-            // Open PDF in new tab
+
             window.open(pdfUrl, '_blank');
             displayFlash('PDF generated successfully!', 'success');
         } else {
             displayFlash('No records found for the selected filters.', 'error');
         }
-
     } catch (error) {
         console.error('PDF generation error:', error);
         if (axios.isAxiosError(error)) {
@@ -1168,6 +1167,19 @@ const goToPage = (url: string | null) => {
                             <option value="female">Female</option>
                         </select>
                     </div>
+
+                    <!-- Exact Date Filter -->
+                    <div>
+                        <label for="pdfExactDate" class="block text-sm font-semibold text-green-700 mb-2">Exact Date</label>
+                        <input
+                            type="date"
+                            id="pdfExactDate"
+                            v-model="filterExactDate"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                            placeholder="Select exact date (optional)"
+                        />
+                    </div>
+
 
                     <!-- Year Filter -->
                     <div>

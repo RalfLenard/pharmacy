@@ -160,6 +160,8 @@ const modalLotNumber = ref('');
 const modalMonth = ref('');
 const modalYear = ref('');
 const modalStockType = ref('');
+const modalDate = ref('');
+
 
 
 // Pagination navigation
@@ -186,38 +188,51 @@ const filteredInventory = computed(() => {
     return inventoryData.value.filter(item => item.stock_type === selectedStockType.value); // Changed from lot_number
 });
 
+
 const generatePdfByLot = async () => {
     const lot = modalLotNumber.value.trim();
     const month = modalMonth.value;
     const year = modalYear.value;
-    const stockType = modalStockType.value; // ✅ Grab selected stock type
+    const stockType = modalStockType.value;
+    const date = modalDate.value;
 
     try {
-        // Check if specific lot exists (only if lot number is filled)
-        if (lot) {
-            const response = await axios.get(getRoute('reports.inventory.check', lot));
-            if (!response.data.exists) {
-                displayFlash('No inventory found for this lot number.', 'error');
-                return;
-            }
-        }
-
         const params = new URLSearchParams();
         if (lot) params.append('lot_number', lot);
         if (month) params.append('month', month);
         if (year) params.append('year', year);
-        if (stockType) params.append('stock_type', stockType); // ✅ Add this
+        if (stockType) params.append('stock_type', stockType);
+        if (date) params.append('date', date);
 
+        // Only check backend if at least one filter is applied
+        if (lot || month || year || stockType || date) {
+            const response = await axios.get(getRoute('reports.inventory.check') + '?' + params.toString());
+
+            if (!response.data.exists) {
+                displayFlash(response.data.message || 'No inventory found for the given filters.', 'error');
+                return; // ❌ Don’t generate PDF
+            }
+        }
+
+        // ✅ Proceed to generate the PDF
         const pdfUrl = getRoute('reports.inventory.pdf') + '?' + params.toString();
         window.open(pdfUrl, '_blank');
         displayFlash('Generating inventory PDF report...', 'success');
     } catch (error) {
         console.error(error);
         displayFlash('Error generating PDF. Please try again.', 'error');
+    } finally {
+        showModalPdf.value = false;
     }
-
-    showModalPdf.value = false;
 };
+
+watch(modalDate, (newDate) => {
+    if (newDate) {
+        modalMonth.value = '';
+        modalYear.value = '';
+    }
+});
+
 
 // Format date for display
 function formatDate(dateString: string | null | undefined): string {
@@ -710,6 +725,20 @@ const getRoute = (name: string, params?: any) => {
                             class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         />
                     </div>
+
+                      <!-- Exact Date Input -->
+                      <div>
+                        <label for="dateInput" class="block text-sm font-semibold text-green-700 mb-2">
+                            Exact Date (optional)
+                        </label>
+                        <input
+                            id="dateInput"
+                            v-model="modalDate"
+                            type="date"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                        />
+                    </div>
+                    
                     <!-- Month Dropdown -->
                     <div>
                         <label for="monthInput" class="block text-sm font-semibold text-green-700 mb-2">
@@ -726,6 +755,8 @@ const getRoute = (name: string, params?: any) => {
                             </option>
                         </select>
                     </div>
+
+                
                     <!-- Year Input -->
                     <div>
                         <label for="yearInput" class="block text-sm font-semibold text-green-700 mb-2">

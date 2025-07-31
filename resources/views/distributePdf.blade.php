@@ -61,6 +61,7 @@
         <p><strong>Month:</strong> {{ $month ? \Carbon\Carbon::create()->month($month)->format('F') : 'All' }}</p>
         <p><strong>Year:</strong> {{ $year ?? 'All' }}</p>
         <p><strong>As of:</strong> {{ now()->format('F j, Y') }}</p>
+        Report ID: {{ $report_id }}
     </div>
 
     <table>
@@ -91,10 +92,12 @@
                     <td>{{ \Carbon\Carbon::parse($distribution->inventory->expiration_date)->format('M d, Y') }}</td>
                     <td>{{ $distribution->quantity }}</td>
                     <td>{{ \Carbon\Carbon::parse($distribution->date_distribute)->format('Y-m-d') }}</td>
+                    <td>{{ $distribution->reason ?? 'N/A' }}</td>
                    
                 </tr>
             @endforeach
         </tbody>
     </table>
+    
 </body>
 </html>
