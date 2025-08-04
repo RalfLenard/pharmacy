@@ -504,30 +504,42 @@ const getRoute = (name: string, params?: any) => {
                                         Date In
                                     </div>
                                 </th>
+
                                 <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
-                                    <div class="flex items-center gap-2">
-                                        <PackageIcon class="h-4 w-4" />
-                                        Medicine Details
-                                    </div>
+                                    Qty Delivered
+                                </th>
+
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    Generic Name
+                                </th>
+
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    Brand Name
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     Units
                                 </th>
+
                                 <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
-                                    Stock Type
+                                    Lot/Batch 
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
-                                    Quantity
-                                </th>
-                                <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
-                                    Stocks on Hand
-                                </th>
+
                                 <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     <div class="flex items-center gap-2">
                                         <Calendar class="h-4 w-4" />
-                                        Expiration
+                                        Expiration Date
                                     </div>
                                 </th>
+
+                            
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    Stocks on Hand
+                                </th>
+
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-green-800 uppercase tracking-wider">
+                                    Source
+                                </th>
+                               
                                 <th class="px-6 py-4 text-center text-xs font-semibold text-green-800 uppercase tracking-wider">
                                     Actions
                                 </th>
@@ -540,21 +552,40 @@ const getRoute = (name: string, params?: any) => {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                         {{ formatDate(item.date_in) }}
                                     </td>
-                                    <td class="px-6 py-4">
-                                        <div>
-                                            <div class="font-semibold text-gray-900">{{ item.brand_name }}</div>
-                                            <div class="text-sm text-gray-600">{{ item.generic_name }}</div>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                        {{ item.utils }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                        {{ item.stock_type }}
-                                    </td>
+
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                                         {{ item.quantity }}
                                     </td>
+
+                                    
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {{ item.generic_name }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {{ item.brand_name }}
+                                    </td>
+
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {{ item.utils }}
+                                    </td>
+
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {{ item.lot_number }}
+                                    </td>
+
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm text-gray-700">{{ formatDate(item.expiration_date) }}</span>
+                                            <span v-if="expirationStatus(item.expiration_date)"
+                                                :class="badgeClass(expirationStatus(item.expiration_date))"
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border">
+                                                {{ expirationStatus(item.expiration_date) }}
+                                            </span>
+                                        </div>
+                                    </td>
+
+
+                                  
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center gap-2">
                                             <span class="text-sm font-semibold text-gray-900">{{ item.stocks }}</span>
@@ -576,16 +607,11 @@ const getRoute = (name: string, params?: any) => {
                                             </span>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-sm text-gray-700">{{ formatDate(item.expiration_date) }}</span>
-                                            <span v-if="expirationStatus(item.expiration_date)"
-                                                :class="badgeClass(expirationStatus(item.expiration_date))"
-                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border">
-                                                {{ expirationStatus(item.expiration_date) }}
-                                            </span>
-                                        </div>
+
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        {{ item.stock_type }}
                                     </td>
+                                    
                                     <td class="px-6 py-4 text-center">
                                         <div class="flex justify-center gap-2">
                                             <!-- Edit Button -->

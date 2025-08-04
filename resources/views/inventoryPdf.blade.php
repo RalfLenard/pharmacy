@@ -74,15 +74,16 @@
             <thead>
                 <tr>
                     <th>#</th>
+                    <th>Date In</th>
+                    <th>Qty Delivered</th>
                     <th>Generic Name</th>
                     <th>Brand Name</th>
                     <th>Units</th>
                     <th>Lot Number</th>
                     <th>Expiration Date</th>
-                    <th>Quantity</th>
-                    <th>Stocks</th>
-                    <th>Stock Type</th>
-                    <th>Date In</th>
+                    <th>SOH</th>
+                    <th>Source</th>
+                   
                 </tr>
             </thead>
             <tbody>
@@ -90,15 +91,18 @@
                 @foreach ($inventories->sortBy(fn($item) => strtolower($item->generic_name ?? '')) as $item)
                     <tr>
                         <td>{{ $i++ }}</td>
+                        <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
+                        <td>{{ $item->quantity }}</td>
+                      
                         <td>{{ $item->generic_name }}</td>
                         <td>{{ $item->brand_name }}</td>
                         <td>{{ $item->utils }}</td>
                         <td>{{ $item->lot_number }}</td>
                         <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
-                        <td>{{ $item->quantity }}</td>
+                       
                         <td>{{ $item->stocks }}</td>
                         <td>{{ $item->stock_type ?? 'N/A' }}</td>
-                        <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
+                       
                     </tr>
                 @endforeach
             </tbody>
