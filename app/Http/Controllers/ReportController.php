@@ -93,13 +93,14 @@ class ReportController extends Controller
             $year = $request->input('year');
             $stock_type = $request->input('stock_type');
             $date = $request->input('date');
-
+            $preparedBy = $request->input('prepared_by'); // 🔥 new line
+    
             $query = Inventory::query();
-
+    
             if ($lot_number) {
                 $query->where('lot_number', $lot_number);
             }
-
+    
             if ($date) {
                 $query->whereDate('date_in', $date);
             } elseif ($month && $year) {
@@ -108,15 +109,14 @@ class ReportController extends Controller
             } elseif ($year) {
                 $query->whereYear('date_in', $year);
             }
-
+    
             if ($stock_type) {
                 $query->where('stock_type', $stock_type);
             }
-
+    
             $inventories = $query->orderBy('date_in', 'desc')->get();
-
+    
             if ($inventories->isEmpty()) {
-                // ✅ Specific message if date was provided
                 if ($date) {
                     return back()->with('error', 'No inventory records found for ' . Carbon::parse($date)->format('F j, Y') . '.');
                 } elseif ($month && $year) {
@@ -126,15 +126,13 @@ class ReportController extends Controller
                 } elseif ($lot_number) {
                     return back()->with('error', "No inventory found for Lot #$lot_number.");
                 }
-
+    
                 return back()->with('error', 'No inventory found matching the provided filters.');
             }
-
+    
             $title = 'Inventory Report';
-            if ($stock_type)
-                $title .= " - $stock_type";
-            if ($lot_number)
-                $title .= " - Lot #$lot_number";
+            if ($stock_type) $title .= " - $stock_type";
+            if ($lot_number) $title .= " - Lot #$lot_number";
             if ($date) {
                 $title .= " for " . Carbon::parse($date)->format('F j, Y');
             } elseif ($month && $year) {
@@ -142,15 +140,15 @@ class ReportController extends Controller
             } elseif ($year) {
                 $title .= " for $year";
             }
-
-            $html = View::make('inventoryPdf', compact('inventories', 'title'))->render();
-
+    
+            $html = View::make('inventoryPdf', compact('inventories', 'title', 'preparedBy'))->render();
+    
             $pdf = Browsershot::html($html)
                 ->format('A4')
                 ->margins(10, 10, 10, 10)
                 ->showBackground()
                 ->pdf();
-
+    
             return new StreamedResponse(function () use ($pdf) {
                 echo $pdf;
             }, 200, [
@@ -165,6 +163,7 @@ class ReportController extends Controller
             return back()->with('error', 'An unexpected error occurred while generating the PDF report. Please contact the administrator.');
         }
     }
+    
 
     public function checkInventoryLot(Request $request)
     {
@@ -234,6 +233,7 @@ class ReportController extends Controller
             $month = $request->query('month');
             $year = $request->query('year');
             $exactDate = $request->query('date');
+            $preparedBy = $request->input('prepared_by'); // new line to get prepared_by
     
             $month = !empty($month) ? (int) $month : null;
             $year = !empty($year) ? (int) $year : null;
@@ -265,14 +265,14 @@ class ReportController extends Controller
                 return back()->with('error', 'No distributions found for the selected filters.');
             }
     
-            // ✅ Save UUID to DB
+            // Save UUID to DB
             $reportId = substr((string) Str::uuid(), 0, 8);
     
             GeneratedReport::create([
                 'report_id' => $reportId,
             ]);
     
-            // ✅ Render Blade view safely
+            // Pass prepared_by to the view
             $html = View::make('distributePdf', [
                 'distributions' => $distributions,
                 'remarks' => $remarks ?? 'All',
@@ -281,6 +281,7 @@ class ReportController extends Controller
                 'year' => $year,
                 'date' => $exactDate,
                 'report_id' => $reportId,
+                'prepared_by' => $preparedBy, // pass it here
             ])->render();
     
             $timestamp = now()->format('Ymd_His');
@@ -290,7 +291,6 @@ class ReportController extends Controller
                         ($exactDate ? Str::slug($exactDate) : ($month ? $month . '-' . $year : ($year ?? 'all'))) .
                         '_' . $timestamp . '.pdf';
     
-            // ✅ Convert to PDF
             $pdf = Browsershot::html($html)
                     ->format('A4')
                     ->margins(10, 10, 10, 10)
@@ -304,11 +304,11 @@ class ReportController extends Controller
                 'Content-Disposition' => 'inline; filename="' . $filename . '"',
             ]);
         } catch (\Exception $e) {
-            // You can log the real error too for debugging:
             \Log::error('PDF Generation Failed', ['error' => $e->getMessage()]);
             return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
     }
+    
 
 
     public function checkDistributionByRemarks(Request $request)
@@ -388,24 +388,27 @@ class ReportController extends Controller
     public function generateFilteredPDF(Request $request)
     {
         try {
+            $preparedBy = $request->input('prepared_by'); // <-- Get prepared_by from request
+    
             $query = RecipientDistribution::with(['recipient', 'distribution.inventory']);
-
+    
             $this->applyCommonFilters($query, $request);
-
+    
             $records = $query->get();
-
+    
             if ($records->isEmpty()) {
                 return back()->with('error', 'No records found for the selected filters.');
             }
-
-            $html = view('recipientPdf', compact('records', 'request'))->render();
-
+    
+            // Pass prepared_by to view
+            $html = view('recipientPdf', compact('records', 'request', 'preparedBy'))->render();
+    
             $pdf = Browsershot::html($html)
                 ->format('A4')
                 ->margins(10, 10, 10, 10)
                 ->showBackground()
                 ->pdf();
-
+    
             return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($pdf) {
                 echo $pdf;
             }, 200, [
@@ -416,47 +419,8 @@ class ReportController extends Controller
             return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
     }
-
-
-    // private function applyCommonFilters($query, Request $request)
-    // {
-    //     // Inventory Filters
-    //     if ($request->filled('brand_name')) {
-    //         $query->whereHas('distribution.inventory', fn($q) =>
-    //             $q->where('brand_name', 'like', '%' . $request->brand_name . '%'));
-    //     }
-
-    //     if ($request->filled('generic_name')) {
-    //         $query->whereHas('distribution.inventory', fn($q) =>
-    //             $q->where('generic_name', 'like', '%' . $request->generic_name . '%'));
-    //     }
-
-    //     if ($request->filled('lot_number')) {
-    //         $query->whereHas('distribution.inventory', fn($q) =>
-    //             $q->where('lot_number', 'like', '%' . $request->lot_number . '%'));
-    //     }
-
-    //     // Recipient Filters
-    //     if ($request->filled('barangay')) {
-    //         $query->whereHas('recipient', fn($q) =>
-    //             $q->where('barangay', $request->barangay));
-    //     }
-
-    //     if ($request->filled('gender')) {
-    //         $query->whereHas('recipient', fn($q) =>
-    //             $q->where('gender', $request->gender));
-    //     }
-
-    //     // Date Filters
-    //     $month = $request->filled('month') ? (int) $request->month : null;
-    //     $year = $request->filled('year') ? (int) $request->year : null;
-
-    //     if ($month && $year && $month >= 1 && $month <= 12 && $year > 1900) {
-    //         $query->whereMonth('date_given', $month)
-    //             ->whereYear('date_given', $year);
-    //     }
-    // }
-
+    
+    
     private function applyCommonFilters($query, Request $request)
     {
         // Inventory Filters
@@ -464,86 +428,74 @@ class ReportController extends Controller
             $query->whereHas('distribution.inventory', fn($q) =>
                 $q->where('brand_name', 'like', '%' . $request->brand_name . '%'));
         }
-
+    
         if ($request->filled('generic_name')) {
             $query->whereHas('distribution.inventory', fn($q) =>
                 $q->where('generic_name', 'like', '%' . $request->generic_name . '%'));
         }
-
+    
         if ($request->filled('lot_number')) {
             $query->whereHas('distribution.inventory', fn($q) =>
                 $q->where('lot_number', 'like', '%' . $request->lot_number . '%'));
         }
-
+    
         // Recipient Filters
         if ($request->filled('barangay')) {
             $query->whereHas('recipient', fn($q) =>
                 $q->where('barangay', $request->barangay));
         }
-
+    
         if ($request->filled('gender')) {
             $query->whereHas('recipient', fn($q) =>
                 $q->where('gender', $request->gender));
         }
-
+    
         // Date Filters
-        $exactDate = $request->input('date'); // exact date filter (Y-m-d)
+        $startDate = $request->input('start_date'); // format: Y-m-d
+        $endDate = $request->input('end_date');
+        $exactDate = $request->input('date');
         $month = $request->filled('month') ? (int) $request->month : null;
         $year = $request->filled('year') ? (int) $request->year : null;
-
-        if ($exactDate) {
+    
+        if ($startDate && $endDate) {
+            $query->whereBetween('date_given', [$startDate, $endDate]);
+        } elseif ($exactDate) {
             $query->whereDate('date_given', $exactDate);
-        } elseif ($month && $year && $month >= 1 && $month <= 12 && $year > 1900) {
+        } elseif ($month && $year && $month >= 1 && $year > 1900) {
             $query->whereMonth('date_given', $month)
-                ->whereYear('date_given', $year);
+                  ->whereYear('date_given', $year);
         }
     }
-
-
-
-    // public function checkFilteredPDF(Request $request)
-    // {
-    //     $query = RecipientDistribution::query();
-
-    //     $this->applyCommonFilters($query, $request);
-
-    //     $exists = $query->exists();
-
-    //     return response()->json(['exists' => $exists]);
-    // }
-
+    
     public function checkFilteredPDF(Request $request)
     {
         $query = RecipientDistribution::query();
-
+    
         $this->applyCommonFilters($query, $request);
-
+    
         $exists = $query->exists();
-
+    
         return response()->json([
             'exists' => $exists,
             'message' => $exists ? null : 'No records found for the selected filters.'
         ]);
     }
-
-
-
+    
     public function getAvailableMonths(Request $request)
     {
         $year = $request->input('year');
-
+    
         $query = RecipientDistribution::query();
-
+    
         if ($year) {
             $query->whereYear('date_given', $year);
         }
-
+    
         $months = $query->selectRaw('DISTINCT MONTH(date_given) as month')
             ->orderBy('month')
             ->pluck('month');
-
+    
         return response()->json(['months' => $months]);
     }
-
 
 }

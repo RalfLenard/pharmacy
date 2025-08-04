@@ -161,6 +161,7 @@ const modalMonth = ref('');
 const modalYear = ref('');
 const modalStockType = ref('');
 const modalDate = ref('');
+const modalPreparedBy = ref('');
 
 
 
@@ -195,17 +196,20 @@ const generatePdfByLot = async () => {
     const year = modalYear.value;
     const stockType = modalStockType.value;
     const date = modalDate.value;
+    const preparedBy = modalPreparedBy.value.trim(); // ✅ NEW LINE
 
     try {
         const params = new URLSearchParams();
+
         if (lot) params.append('lot_number', lot);
         if (month) params.append('month', month);
         if (year) params.append('year', year);
         if (stockType) params.append('stock_type', stockType);
         if (date) params.append('date', date);
+        if (preparedBy) params.append('prepared_by', preparedBy); // ✅ NEW LINE
 
         // Only check backend if at least one filter is applied
-        if (lot || month || year || stockType || date) {
+        if (lot || month || year || stockType || date || preparedBy) {
             const response = await axios.get(getRoute('reports.inventory.check') + '?' + params.toString());
 
             if (!response.data.exists) {
@@ -770,6 +774,25 @@ const getRoute = (name: string, params?: any) => {
                             class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
                         />
                     </div>
+
+                    <!-- Prepared By Dropdown -->
+                    <div>
+                        <label for="preparedByInput" class="block text-sm font-semibold text-green-700 mb-2">
+                            Prepared By
+                        </label>
+                        <select
+                            id="preparedByInput"
+                            v-model="modalPreparedBy"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                        >
+                            <option value="">Select Preparer</option>
+                            <option value="Micah Laine Sabalbirino">Micah Laine Sabalbirino</option>
+                            <option value="Justin Gail Tolentino">Justin Gail Tolentino</option>
+                            <option value="Cristel Ann Castro">Cristel Ann Castro</option>
+                            <!-- Add more as needed -->
+                        </select>
+                    </div>
+
                 </div>
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-3 mt-8">

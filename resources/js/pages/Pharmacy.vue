@@ -61,6 +61,7 @@ const modalMonthValue = ref('');
 const modalYearValue = ref('');
 const modalStockTypeValue = ref('');
 const modalExactDateValue = ref('');
+const modalPreparedBy = ref('');
 
 
 
@@ -168,13 +169,13 @@ const confirmDelete = async () => {
         itemToDelete.value = null;
     }
 };
-
 const generateRemarksPdf = async () => {
     const remarks = modalRemarksValue.value.trim();
     const stockType = modalStockTypeValue.value.trim();
     const month = modalMonthValue.value;
     const year = modalYearValue.value;
-    const exactDate = modalExactDateValue.value; // ✅ new date input (e.g., "2025-07-31")
+    const exactDate = modalExactDateValue.value;
+    const preparedBy = modalPreparedBy.value?.trim(); // NEW prepared_by input
 
     if (!remarks) {
         displayFlash('Please enter a valid remark (or type "all").', 'error');
@@ -186,8 +187,8 @@ const generateRemarksPdf = async () => {
             params: {
                 remarks: remarks,
                 stock_type: stockType || undefined,
-                date: exactDate || undefined, // ✅ pass exact date if set
-                month: exactDate ? undefined : (month || undefined), // skip month/year if exactDate is used
+                date: exactDate || undefined,
+                month: exactDate ? undefined : (month || undefined),
                 year: exactDate ? undefined : (year || undefined),
             },
         });
@@ -196,10 +197,15 @@ const generateRemarksPdf = async () => {
             const query = new URLSearchParams();
             if (stockType) query.append('stock_type', stockType);
             if (exactDate) {
-                query.append('date', exactDate); // ✅ exact date
+                query.append('date', exactDate);
             } else {
                 if (month) query.append('month', month);
                 if (year) query.append('year', year);
+            }
+
+            // Append prepared_by if provided
+            if (preparedBy) {
+                query.append('prepared_by', preparedBy);
             }
 
             const queryString = query.toString() ? `?${query.toString()}` : '';
@@ -217,6 +223,7 @@ const generateRemarksPdf = async () => {
 
     showModalRemarksPdf.value = false;
 };
+
 
 
 // Utility functions
@@ -628,6 +635,23 @@ onMounted(() => {
                     <input id="yearInput" v-model="modalYearValue" type="number" placeholder="e.g., 2025"
                         class="w-full rounded-lg border border-green-200 p-3 focus:ring-2 focus:ring-green-200 focus:border-green-500 transition" />
                 </div>
+
+                <div class="mb-6">
+                        <label for="preparedByInput" class="block text-sm font-semibold text-green-700 mb-2">
+                            Prepared By
+                        </label>
+                        <select
+                            id="preparedByInput"
+                            v-model="modalPreparedBy"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                        >
+                            <option value="">Select Preparer</option>
+                            <option value="Micah Laine Sabalbirino">Micah Laine Sabalbirino</option>
+                            <option value="Justin Gail Tolentino">Justin Gail Tolentino</option>
+                            <option value="Cristel Ann Castro">Cristel Ann Castro</option>
+                            <!-- Add more as needed -->
+                        </select>
+                    </div>
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-3">

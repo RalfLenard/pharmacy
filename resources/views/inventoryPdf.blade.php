@@ -38,6 +38,31 @@
             margin-top: 25px;
             font-weight: bold;
         }
+
+        /* Container for signatures side by side */
+        .signatures {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 12px;
+        }
+
+        .signature-block {
+            width: 45%;
+            text-align: center; /* Center text inside each block */
+        }
+
+        .prepared-name, .noted-name {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 0;
+        }
+
+        .prepared-position, .noted-position {
+            font-style: italic;
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
@@ -56,7 +81,7 @@
                     <th>Expiration Date</th>
                     <th>Quantity</th>
                     <th>Stocks</th>
-                    <th>Stock Type</th> <!-- ✅ Added -->
+                    <th>Stock Type</th>
                     <th>Date In</th>
                 </tr>
             </thead>
@@ -72,7 +97,7 @@
                         <td>{{ \Carbon\Carbon::parse($item->expiration_date)->format('M d, Y') }}</td>
                         <td>{{ $item->quantity }}</td>
                         <td>{{ $item->stocks }}</td>
-                        <td>{{ $item->stock_type ?? 'N/A' }}</td> <!-- ✅ Added -->
+                        <td>{{ $item->stock_type ?? 'N/A' }}</td>
                         <td>{{ \Carbon\Carbon::parse($item->date_in)->format('M d, Y') }}</td>
                     </tr>
                 @endforeach
@@ -83,5 +108,23 @@
     @else
         <p>No inventory records found for the selected filters.</p>
     @endif
+
+    <div class="signatures">
+        <!-- Prepared By -->
+        <div class="signature-block">
+            <p>Prepared by:</p>
+            <p class="prepared-name">
+                {{ request('prepared_by') ?: '________________________' }}
+            </p>
+            <p class="prepared-position">PA/Encoder</p>
+        </div>
+
+        <!-- Noted By -->
+        <div class="signature-block">
+            <p>Noted by:</p>
+            <p class="noted-name">Diana Cunanan</p>
+            <p class="noted-position">Pharmacist</p>
+        </div>
+    </div>
 </body>
 </html>

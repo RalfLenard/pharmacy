@@ -38,6 +38,30 @@
         .filters .filter {
             margin-bottom: 8px;
         }
+
+        .signatures {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 12px;
+        }
+
+        .signature-block {
+            width: 45%;
+            text-align: center; /* Center text inside each block */
+        }
+
+        .prepared-name, .noted-name {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 0;
+        }
+
+        .prepared-position, .noted-position {
+            font-style: italic;
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
@@ -88,6 +112,24 @@
             @endforeach
         </tbody>
     </table>
+
+    <div class="signatures">
+        <!-- Prepared By -->
+        <div class="signature-block">
+            <p>Prepared by:</p>
+            <p class="prepared-name">
+                {{ request('prepared_by') ?: '________________________' }}
+            </p>
+            <p class="prepared-position">PA/Encoder</p>
+        </div>
+
+        <!-- Noted By -->
+        <div class="signature-block">
+            <p>Noted by:</p>
+            <p class="noted-name">Diana Cunanan</p>
+            <p class="noted-position">Pharmacist</p>
+        </div>
+    </div>
 
     <!-- Footer -->
     <div class="footer">

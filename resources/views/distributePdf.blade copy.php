@@ -5,14 +5,19 @@
     <title>Distribution Report - Remarks: {{ $remarks ?? 'All' }}</title>
     <style>
         body {
-            font-family: sans-serif;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             font-size: 14px;
             color: #1f2937;
-            margin: 20px;
+            margin: 20px 30px;
+            line-height: 1.5;
         }
 
-        h1, h3 {
-            margin-bottom: 10px;
+        h1 {
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: 700;
+            font-size: 22px;
+            color: #2d3748;
         }
 
         .summary {
@@ -34,58 +39,62 @@
         table {
             width: 100%;
             border-collapse: collapse;
-          
+            margin-bottom: 45px;
+            font-size: 11px;
+            color: #2d3748;
         }
 
         th, td {
-            border: 1px solid #d1d5db;
-            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            padding: 8px 10px;
             text-align: left;
-            font-size: 10px;
+            vertical-align: middle;
         }
 
         th {
-            background-color: #e5e7eb;
-            font-weight: bold;
+            background-color: #edf2f7;
+            font-weight: 600;
+            color: #4a5568;
+            user-select: none;
         }
 
         tr:nth-child(even) {
-            background-color: #f9fafb;
-        }
-
-        .footer {
-            margin-top: 40px;
-            font-size: 12px;
-            text-align: center;
-            color: #6b7280;
-        }
-
-        .ref{
-            text-align: right;
+            background-color: #f7fafc;
         }
 
         .signatures {
-            margin-top: 60px;
             display: flex;
             justify-content: space-between;
-            width: 100%;
-            font-size: 12px;
+            margin-top: 50px;
+            font-size: 13px;
+            color: #2d3748;
         }
 
         .signature-block {
-            width: 45%;
-            text-align: center; /* Center text inside each block */
+            width: 48%;
+            border-top: 1.5px solid #cbd5e0;
+            padding-top: 20px;
+            text-align: center;
+        }
+
+        .signature-block p {
+            margin: 0;
         }
 
         .prepared-name, .noted-name {
-            font-weight: bold;
+            font-weight: 700;
             text-decoration: underline;
-            margin-bottom: 0;
+            margin-top: 8px;
+            margin-bottom: 2px;
+            font-size: 14px;
+            user-select: text;
         }
 
         .prepared-position, .noted-position {
             font-style: italic;
-            margin-top: 0;
+            color: #718096;
+            font-size: 12px;
+            user-select: text;
         }
     </style>
 </head>
@@ -103,7 +112,6 @@
             <p><strong>Reference No.:</strong> RHUI-{{ $report_id }}</p>
         </div>
     </div>
-
 
     <table>
         <thead>
@@ -134,7 +142,6 @@
                     <td>{{ $distribution->quantity }}</td>
                     <td>{{ \Carbon\Carbon::parse($distribution->date_distribute)->format('Y-m-d') }}</td>
                     <td>{{ $distribution->reason ?? 'N/A' }}</td>
-                   
                 </tr>
             @endforeach
         </tbody>
@@ -142,7 +149,7 @@
 
     <div class="signatures">
         <!-- Prepared By -->
-        <div class="signature-block">
+        <div class="signature-block" style="text-align: left;">
             <p>Prepared by:</p>
             <p class="prepared-name">
                 {{ request('prepared_by') ?: '________________________' }}
@@ -151,7 +158,7 @@
         </div>
 
         <!-- Noted By -->
-        <div class="signature-block">
+        <div class="signature-block" style="text-align: right;">
             <p>Noted by:</p>
             <p class="noted-name">Diana Cunanan</p>
             <p class="noted-position">Pharmacist</p>

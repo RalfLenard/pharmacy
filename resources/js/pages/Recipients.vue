@@ -90,11 +90,18 @@ const filterLotNumber = ref(props.filters?.lot_number || '');
 const filterBrandName = ref(props.filters?.brand_name || '');
 const filterGenericName = ref(props.filters?.generic_name || '');
 const filterExactDate = ref(''); 
+const modalPreparedBy = ref('');
 
 // PDF Generation loading state
 const isGeneratingPdf = ref(false);
 const availableMonths = ref<number[]>([]);
 const isLoadingMonths = ref(false);
+
+const filterStartDate = ref(''); // Y-m-d format (e.g. '2025-07-20')
+const filterEndDate = ref('');   // Y-m-d format (e.g. '2025-08-04')
+
+// (plus the rest: brandName, lotNumber, etc.)
+
 
 // Current date for year dropdown
 const currentYear = new Date().getFullYear();
@@ -305,23 +312,32 @@ const generateFilteredPdf = async () => {
     try {
         const params: Record<string, string> = {};
 
+        // Inventory Filters
         if (filterBrandName.value.trim()) params.brand_name = filterBrandName.value.trim();
         if (filterGenericName.value.trim()) params.generic_name = filterGenericName.value.trim();
         if (filterLotNumber.value.trim()) params.lot_number = filterLotNumber.value.trim();
+
+        // Recipient Filters
         if (filterBarangay.value.trim()) params.barangay = filterBarangay.value.trim();
         if (filterGender.value.trim()) params.gender = filterGender.value.trim();
-        if (filterMonth.value !== '' && filterMonth.value !== null) {
+
+        // Prepared By filter (NEW)
+        if (modalPreparedBy.value.trim()) params.prepared_by = modalPreparedBy.value.trim();
+
+        // Date Range Filter
+        if (filterStartDate.value.trim() && filterEndDate.value.trim()) {
+            params.start_date = filterStartDate.value.trim();
+            params.end_date = filterEndDate.value.trim();
+        } else if (filterExactDate.value.trim()) {
+            params.date = filterExactDate.value.trim(); // Optional fallback
+        } else if (filterMonth.value && filterYear.value) {
             params.month = String(filterMonth.value);
-        }
-        if (filterYear.value !== '' && filterYear.value !== null) {
             params.year = String(filterYear.value);
         }
-        if (filterExactDate.value.trim()) {
-            params.date = filterExactDate.value.trim(); // ADD exact date param here
-        }
 
+        // Check if data exists
         const checkResponse = await axios.get('/report/recipient-distributions/check', {
-            params: params,
+            params,
         });
 
         if (checkResponse.data.exists) {
@@ -1097,147 +1113,146 @@ const goToPage = (url: string | null) => {
         </div>
 
         <!-- Enhanced Modal for Filtered PDF Generation -->
-        <div v-if="showModalFilteredPdf"
-            class="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-            <div class="bg-white text-gray-900 p-8 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4 border border-green-100">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-bold text-green-800">Generate Distribution Report</h3>
-                    <button @click="showModalFilteredPdf = false" 
-                        class="text-gray-500 hover:text-gray-700">
-                        <XIcon class="w-6 h-6" />
-                    </button>
-                </div>
+     <div v-if="showModalFilteredPdf"
+     class="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+  <div
+    class="bg-white text-gray-900 p-8 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4 border border-green-100">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-xl font-bold text-green-800">Generate Distribution Report</h3>
+      <button @click="showModalFilteredPdf = false" class="text-gray-500 hover:text-gray-700">
+        <XIcon class="w-6 h-6" />
+      </button>
+    </div>
 
-                <div class="space-y-4">
-                    <!-- Brand Name Filter -->
-                    <div>
-                        <label for="pdfBrandName" class="block text-sm font-semibold text-green-700 mb-2">Brand Name</label>
-                        <select v-model="filterBrandName" id="pdfBrandName"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
-                            <option value="">All Brands</option>
-                            <option v-for="brand in uniqueBrandNames" :key="brand" :value="brand">
-                                {{ brand }}
-                            </option>
-                        </select>
-                    </div>
+    <div class="space-y-4">
+      <!-- Brand Name Filter -->
+      <div>
+        <label for="pdfBrandName" class="block text-sm font-semibold text-green-700 mb-2">Brand Name</label>
+        <select v-model="filterBrandName" id="pdfBrandName"
+                class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+          <option value="">All Brands</option>
+          <option v-for="brand in uniqueBrandNames" :key="brand" :value="brand">{{ brand }}</option>
+        </select>
+      </div>
 
-                    <!-- Generic Name Filter -->
-                    <div>
-                        <label for="pdfGenericName" class="block text-sm font-semibold text-green-700 mb-2">Generic Name</label>
-                        <select v-model="filterGenericName" id="pdfGenericName"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
-                            <option value="">All Generics</option>
-                            <option v-for="generic in uniqueGenericNames" :key="generic" :value="generic">
-                                {{ generic }}
-                            </option>
-                        </select>
-                    </div>
+      <!-- Generic Name Filter -->
+      <div>
+        <label for="pdfGenericName" class="block text-sm font-semibold text-green-700 mb-2">Generic Name</label>
+        <select v-model="filterGenericName" id="pdfGenericName"
+                class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+          <option value="">All Generics</option>
+          <option v-for="generic in uniqueGenericNames" :key="generic" :value="generic">{{ generic }}</option>
+        </select>
+      </div>
 
-                    <!-- Lot Number Filter -->
-                    <div>
-                        <label for="pdfLotNumber" class="block text-sm font-semibold text-green-700 mb-2">Lot Number</label>
-                        <select v-model="filterLotNumber" id="pdfLotNumber"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
-                            <option value="">All Lot Numbers</option>
-                            <option v-for="lotNumber in uniqueLotNumbers" :key="lotNumber" :value="lotNumber">
-                                {{ lotNumber }}
-                            </option>
-                        </select>
-                    </div>
+      <!-- Lot Number Filter -->
+      <div>
+        <label for="pdfLotNumber" class="block text-sm font-semibold text-green-700 mb-2">Lot Number</label>
+        <select v-model="filterLotNumber" id="pdfLotNumber"
+                class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+          <option value="">All Lot Numbers</option>
+          <option v-for="lotNumber in uniqueLotNumbers" :key="lotNumber" :value="lotNumber">{{ lotNumber }}</option>
+        </select>
+      </div>
 
-                    <!-- Barangay Filter -->
-                    <div>
-                        <label for="pdfBarangay" class="block text-sm font-semibold text-green-700 mb-2">Barangay</label>
-                        <select v-model="filterBarangay" id="pdfBarangay"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
-                            <option value="">All Barangays</option>
-                            <option v-for="barangay in uniqueBarangays" :key="barangay" :value="barangay">
-                                {{ barangay }}
-                            </option>
-                        </select>
-                    </div>
+      <!-- Barangay Filter -->
+      <div>
+        <label for="pdfBarangay" class="block text-sm font-semibold text-green-700 mb-2">Barangay</label>
+        <select v-model="filterBarangay" id="pdfBarangay"
+                class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+          <option value="">All Barangays</option>
+          <option v-for="barangay in uniqueBarangays" :key="barangay" :value="barangay">{{ barangay }}</option>
+        </select>
+      </div>
 
-                    <!-- Gender Filter -->
-                    <div>
-                        <label for="pdfGender" class="block text-sm font-semibold text-green-700 mb-2">Gender</label>
-                        <select v-model="filterGender" id="pdfGender"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
-                            <option value="">All Genders</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                        </select>
-                    </div>
+      <!-- Gender Filter -->
+      <div>
+        <label for="pdfGender" class="block text-sm font-semibold text-green-700 mb-2">Gender</label>
+        <select v-model="filterGender" id="pdfGender"
+                class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
+          <option value="">All Genders</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
 
-                    <!-- Exact Date Filter -->
-                    <div>
-                        <label for="pdfExactDate" class="block text-sm font-semibold text-green-700 mb-2">Exact Date</label>
-                        <input
-                            type="date"
-                            id="pdfExactDate"
-                            v-model="filterExactDate"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
-                            placeholder="Select exact date (optional)"
-                        />
-                    </div>
-
-
-                    <!-- Year Filter -->
-                    <div>
-                        <label for="pdfYear" class="block text-sm font-semibold text-green-700 mb-2">Year</label>
-                        <select v-model="filterYear" id="pdfYear"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition">
-                            <option value="">All Years</option>
-                            <option v-for="year in years" :key="year" :value="year">{{ year }}</option>
-                        </select>
-                    </div>
-
-                    <!-- Month Filter (Dynamic based on selected year) -->
-                    <div>
-                        <label for="pdfMonth" class="block text-sm font-semibold text-green-700 mb-2">
-                            Month
-                            <span v-if="isLoadingMonths" class="text-xs text-green-600">(Loading...)</span>
-                        </label>
-                        <select v-model="filterMonth" id="pdfMonth"
-                            :disabled="!filterYear || isLoadingMonths"
-                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                            <option value="">All Months</option>
-                            <option v-if="!filterYear" disabled>Select a year first</option>
-                            <option v-for="month in availableMonths" :key="month" :value="month">
-                                {{ monthNames[month - 1] }}
-                            </option>
-                        </select>
-                        <p v-if="filterYear && availableMonths.length === 0 && !isLoadingMonths" 
-                           class="text-xs text-green-600 mt-1">
-                            No data available for {{ filterYear }}
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex justify-between gap-3 mt-8">
-                    <button @click="clearPdfFilters"
-                        class="px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                        Clear Filters
-                    </button>
-                    
-                    <div class="flex gap-3">
-                        <button @click="showModalFilteredPdf = false"
-                            class="px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                            Cancel
-                        </button>
-                        <button @click="generateFilteredPdf"
-                            :disabled="isGeneratingPdf"
-                            class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg transform hover:scale-105 flex items-center">
-                            <svg v-if="isGeneratingPdf" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            {{ isGeneratingPdf ? 'Generating...' : 'Generate PDF' }}
-                        </button>
-                    </div>
-                </div>
-            </div>
+      <!-- Date Range Filters -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <!-- Start Date -->
+        <div>
+          <label for="pdfStartDate" class="block text-sm font-semibold text-green-700 mb-2">Start Date</label>
+          <input
+            type="date"
+            id="pdfStartDate"
+            v-model="filterStartDate"
+            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+          />
         </div>
+
+        <!-- End Date -->
+        <div>
+          <label for="pdfEndDate" class="block text-sm font-semibold text-green-700 mb-2">End Date</label>
+          <input
+            type="date"
+            id="pdfEndDate"
+            v-model="filterEndDate"
+            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+          />
+        </div>
+
+      
+        
+      </div>
+    </div>
+
+    <div class="mb-6">
+                        <label for="preparedByInput" class="block text-sm font-semibold text-green-700 mb-2">
+                            Prepared By
+                        </label>
+                        <select
+                            id="preparedByInput"
+                            v-model="modalPreparedBy"
+                            class="w-full p-3 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-500 transition"
+                        >
+                            <option value="">Select Preparer</option>
+                            <option value="Micah Laine Sabalbirino">Micah Laine Sabalbirino</option>
+                            <option value="Justin Gail Tolentino">Justin Gail Tolentino</option>
+                            <option value="Cristel Ann Castro">Cristel Ann Castro</option>
+                            <!-- Add more as needed -->
+                        </select>
+                    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex justify-between gap-3 mt-8">
+      <button @click="clearPdfFilters"
+              class="px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+        Clear Filters
+      </button>
+
+      <div class="flex gap-3">
+        <button @click="showModalFilteredPdf = false"
+                class="px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+          Cancel
+        </button>
+        <button @click="generateFilteredPdf"
+                :disabled="isGeneratingPdf"
+                class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg transform hover:scale-105 flex items-center">
+          <svg v-if="isGeneratingPdf" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+               xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10"
+                    stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 
+                     1.135 5.824 3 7.938l3-2.647z">
+            </path>
+          </svg>
+          {{ isGeneratingPdf ? 'Generating...' : 'Generate PDF' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
         <!-- Modals -->
         <AddRecipientModal v-if="showAddModal" @close="showAddModal = false" />
