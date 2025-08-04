@@ -2,14 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recipient Distribution Report</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 5px;
         }
-        h1, h3 {
+        h1 {
+            text-align: center;
+            margin-bottom: 0;
+        }
+        .top-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        .filters {
+            font-size: 12px;
+            margin-bottom: 10px;
             text-align: center;
         }
         table {
@@ -26,19 +37,6 @@
         th {
             background-color: #f2f2f2;
         }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            font-size: 0.9rem;
-        }
-        .filters {
-            margin-top: 20px;
-            text-align: left;
-        }
-        .filters .filter {
-            margin-bottom: 8px;
-        }
-
         .signatures {
             margin-top: 60px;
             display: flex;
@@ -46,27 +44,53 @@
             width: 100%;
             font-size: 12px;
         }
-
         .signature-block {
             width: 45%;
-            text-align: center; /* Center text inside each block */
+            text-align: center;
         }
-
         .prepared-name, .noted-name {
             font-weight: bold;
             text-decoration: underline;
             margin-bottom: 0;
         }
-
         .prepared-position, .noted-position {
             font-style: italic;
             margin-top: 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
 
-    <!-- Table of recipient distribution records -->
+    <div class="top-info">
+        <div></div> <!-- Empty left for spacing -->
+        <div>{{ now()->format('F j, Y ') }}</div>
+    </div>
+
+    <h1>Distribution Report</h1>
+
+    <div class="filters">
+        @php
+            $start = $request->input('start_date');
+            $end = $request->input('end_date');
+            $exact = $request->input('date');
+            $month = $request->input('month');
+            $year = $request->input('year');
+        @endphp
+
+        @if ($start && $end)
+            <p><strong>{{ \Carbon\Carbon::parse($start)->format('F j, Y') }}</strong> to <strong>{{ \Carbon\Carbon::parse($end)->format('F j, Y') }}</strong></p>
+        @elseif ($exact)
+            <p>Date: <strong>{{ \Carbon\Carbon::parse($exact)->format('F j, Y') }}</strong></p>
+        @elseif ($month && $year)
+            <p>Month: <strong>{{ \Carbon\Carbon::create($year, $month)->format('F Y') }}</strong></p>
+        @endif
+    </div>
+
     <table>
         <thead>
             <tr>
@@ -77,7 +101,7 @@
                 <th>Medicine</th>
                 <th>Batch/Lot Number</th>
                 <th>Qty</th>
-                <th>Date Given</th> <!-- New column for Date Given -->
+                <th>Date Given</th>
             </tr>
         </thead>
         <tbody>
@@ -99,15 +123,9 @@
                             N/A
                         @endif
                     </td>
-                    <td>
-                        @if ($inventory)
-                            {{ $inventory->lot_number }}
-                        @else
-                            N/A
-                        @endif
-                    </td>
+                    <td>{{ $inventory?->lot_number ?? 'N/A' }}</td>
                     <td>{{ $record->quantity ?? 'N/A' }}</td>
-                    <td>{{ $record->date_given ? \Carbon\Carbon::parse($record->date_given)->format('F j, Y') : 'N/A' }}</td> <!-- Displaying the date_given -->
+                    <td>{{ $record->date_given ? \Carbon\Carbon::parse($record->date_given)->format('F j, Y') : 'N/A' }}</td>
                 </tr>
             @endforeach
         </tbody>
@@ -118,7 +136,7 @@
         <div class="signature-block">
             <p>Prepared by:</p>
             <p class="prepared-name">
-                {{ request('prepared_by') ?: '________________________' }}
+                {{ $preparedBy ?: '________________________' }}
             </p>
             <p class="prepared-position">PA/Encoder</p>
         </div>
@@ -129,11 +147,6 @@
             <p class="noted-name">Diana Cunanan</p>
             <p class="noted-position">Pharmacist</p>
         </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="footer">
-        <p>Generated on: {{ now()->format('Y-m-d H:i:s') }}</p>
     </div>
 
 </body>
